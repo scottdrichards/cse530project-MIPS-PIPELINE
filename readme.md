@@ -30,12 +30,17 @@ The project is worth 50 points in total. Below are how the points are assigned t
 
 Tasks to be completed 50 points + up to 5 bonus points
 --------------------------------
-Implement full bypassing in the pipeline (10 points)
-Implement a dynamic branch predictor with a BTB and a RAS (at least as sophisticated as one of the two-level branch predictors discussed in class) (10 points)
-Implement cache functionalities (for L1-I, L1-D, and L2 caches) and integrate them into the processor (10 points)
-Implement the necessary writeback buffers and MSHRs (15 points)
-Implement LRU replacement policy and pseudo-LRU replacement policy (5 points)
-Optional Bonus: Perform a sensitivity analysis on the size of the branch predictor (5 points)
+1. Implement full bypassing in the pipeline (10 points) **Chunrong Shan** 
+
+2. Implement a dynamic branch predictor with a BTB and a RAS (at least as sophisticated as one of the two-level branch predictors discussed in class) (10 points) **Jundi Li**, **Joe Tomasko**
+
+3. Implement cache functionalities (for L1-I, L1-D, and L2 caches) and integrate them into the processor (10 points) **Movahhed Sad**
+
+4. Implement the necessary writeback buffers and MSHRs (15 points) **Umar Mohammad**
+
+5. Implement LRU replacement policy and pseudo-LRU replacement policy (5 points) **Scott Richards** 
+
+6. Optional Bonus: Perform a sensitivity analysis on the size of the branch predictor (5 points) **Jundi Li**, **Joe Tomasko** 
 
 
 Deliverables
