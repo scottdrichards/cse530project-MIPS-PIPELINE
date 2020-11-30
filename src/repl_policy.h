@@ -44,4 +44,15 @@ public:
 	virtual void update(uint32_t addr, int way, bool isWrite) override;
 };
 
+/*
+ * Least Recently Used (LRU) replacement policy 
+*/
+class LRURepl: public AbstarctReplacementPolicy{
+	public:
+		LRURepl(Cache* cache);
+		~LRURepl(){}
+		virtual Block* getVictim(uint32_t addr, bool isWrite) override;
+		virtual void update(uint32_t addr, int way, bool isWrite) override;
+};
+
 #endif

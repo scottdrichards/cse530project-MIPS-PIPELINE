@@ -23,11 +23,14 @@ Cache::Cache(uint32_t size, uint32_t associativity, uint32_t blkSize,
 	}
 
 	switch (replType) {
-	case RandomReplPolicy:
-		replPolicy = new RandomRepl(this);
-		break;
-	default:
-		assert(false && "Unknown Replacement Policy");
+		case RandomReplPolicy:
+			replPolicy = new RandomRepl(this);
+			break;
+		case LRUReplPolicy:
+			replPolicy = new LRURepl(this);
+			break;
+		default:
+			assert(false && "Unknown Replacement Policy");
 	}
 
 	/*
