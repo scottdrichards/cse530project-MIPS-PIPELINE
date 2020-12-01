@@ -19,7 +19,7 @@
 void printOp(Pipe_Op *op) {
 	if (op)
 		printf(
-				"OP (PC=%08x inst=%08x) src1=R%d (%08x) src2=R%d (%08x) dst=R%d valid %d (%08x) br=%d taken=%d dest=%08x mem=%d addr=%08x\n",
+				"OP (PC=%08x inst=%08x) src1=R%2d (%08x) src2=R%2d (%08x) dst=R%2d valid %d (%08x) br=%d taken=%d dest=%08x mem=%2d addr=%08x\n",
 				op->pc, op->instruction, op->reg_src1, op->reg_src1_value,
 				op->reg_src2, op->reg_src2_value, op->reg_dst,
 				op->reg_dst_value_ready, op->reg_dst_value, op->is_branch,
@@ -63,11 +63,11 @@ void PipeState::pipeCycle() {
 		printf("\n\n----\nCycle : %lu\nPIPELINE:\n", currCycle);
 		printf("DECODE: ");
 		printOp(decode_op);
-		printf("EXEC : ");
+		printf("EXEC  : ");
 		printOp(execute_op);
-		printf("MEM  : ");
+		printf("MEM   : ");
 		printOp(mem_op);
-		printf("WB   : ");
+		printf("WB    : ");
 		printOp(wb_op);
 		printf("\n");
 	}
