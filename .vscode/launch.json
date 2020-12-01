@@ -12,7 +12,9 @@
             "args": ["config.json", "${input:testFile}"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment":[
+                {"name":"unattended", "value":"true"}
+            ],
             "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [

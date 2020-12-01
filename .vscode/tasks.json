@@ -6,8 +6,8 @@
         {
             "type": "shell",
             "label": "Run Makefile",
-            "command": "make",
-            "args": [""],
+            "command": "make clean; make debug",
+            "args": [],
             "options": {
                 "cwd": "${workspaceFolder}"
             },

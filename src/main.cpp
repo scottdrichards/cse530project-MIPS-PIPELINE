@@ -172,8 +172,13 @@ bool getCommand() {
 	printf("SIM> ");
 
 	//End of commands
-	if (scanf("%s", buffer) == EOF)
+	if (getenv("unattended")){
+		printf("g");
+		buffer[0]='g';
+	}
+	else if (scanf("%s", buffer) == EOF){
 		return false;
+	}
 
 	printf("\n");
 
