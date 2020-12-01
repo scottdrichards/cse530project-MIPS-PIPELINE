@@ -257,33 +257,55 @@ void PipeState::pipeStageExecute() {
 	//grab op and read sources
 	Pipe_Op *op = execute_op;
 
-	//read register values, stall if necessary
-	int stall = 0;
-	if (op->reg_src1 != -1) {
-		if (op->reg_src1 == 0)
-			op->reg_src1_value = 0;
-		else if (mem_op && mem_op->reg_dst == op->reg_src1) {
-			stall = 1;
-		} else if (wb_op && wb_op->reg_dst == op->reg_src1) {
-			stall = 1;
-		} else
-			op->reg_src1_value = REGS[op->reg_src1];
-	}
-	if (op->reg_src2 != -1) {
-		if (op->reg_src2 == 0)
-			op->reg_src2_value = 0;
-		else if (mem_op && mem_op->reg_dst == op->reg_src2) {
-			stall = 1;
-		} else if (wb_op && wb_op->reg_dst == op->reg_src2) {
-			stall = 1;
-		} else
-			op->reg_src2_value = REGS[op->reg_src2];
-	}
+	// Get register values. I (scott - szr322) changed this to be a functional
+	// style so that we can avoid a milion if-elses as it was originally organized.
+	enum RegisterReadiness{NotApplicable,Ready,NotReady};
+	struct RegisterState{
+		RegisterReadiness state;
+		uint32_t value;
+	};
 
-	//if requires a stall return without clearing stage input
-	if (stall)
-		return;
-	//execute the op
+	/*
+	 * Gets the value (if appropriate) using forwarding if possible
+	*/
+	auto getRegisterState = [=](int registerID)->RegisterState {
+		if (registerID == 0) return {Ready,0};
+		if (registerID == -1) return {NotApplicable,0};
+
+		/*
+		 * Checks to see if the pipeline stage outputs to the registerID
+		 * and will return the appropriate status/value 
+		*/
+		auto getStageForwarding = [=](Pipe_Op*stage)->RegisterState{
+			if (stage && stage->reg_dst == registerID) return {
+				stage->reg_dst_value_ready?Ready:NotReady,
+				stage->reg_dst_value
+			};
+			return {NotApplicable,0};
+		};
+
+		// First we need to check memory stage
+		auto mem = getStageForwarding(mem_op);
+		if (mem.state != NotApplicable) return mem;
+		// If memory stage doesn't output to the register, we
+		// check the writeback stage
+		auto wb = getStageForwarding(wb_op);
+		if (wb.state != NotApplicable) return wb;
+
+		// Return current value of the register
+		return {Ready, REGS[registerID]};
+	};
+
+	auto regState1 = getRegisterState(op->reg_src1);
+	auto regState2 = getRegisterState(op->reg_src2);
+
+	// Should we stall and wait for register values?
+	if (regState1.state == NotReady || regState2.state == NotReady) return;
+
+	// Apply results
+	if (regState1.state == Ready) op->reg_src1_value = regState1.value;
+	if (regState2.state == Ready) op->reg_src2_value = regState2.value;
+
 	switch (op->opcode) {
 	case OP_SPECIAL:
 		op->reg_dst_value_ready = 1;
