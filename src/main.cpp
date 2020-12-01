@@ -172,7 +172,10 @@ bool getCommand() {
 	printf("SIM> ");
 
 	//End of commands
-	if (getenv("unattended")){
+	char* unattendedEnv = getenv("unattended");
+	if (unattendedEnv && strcmp(unattendedEnv,"true")==0){
+		// Only run once
+		setenv("unattended","false", true);
 		printf("g");
 		buffer[0]='g';
 	}
