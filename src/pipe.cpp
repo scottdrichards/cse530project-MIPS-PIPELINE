@@ -126,6 +126,20 @@ void PipeState::pipeCycle() {
 	}
 }
 
+/*
+ * Helper function to tell when a op is a store instruction (used for WM forwarding) 
+*/
+bool isStore(Pipe_Op*op){
+	switch (op->opcode){
+		case OP_SW:
+		case OP_SH:
+		case OP_SB:
+		return true;
+		break;			
+	}
+	return false;
+}
+
 void PipeState::pipeRecover(int flush, uint32_t dest) {
 	/* if there is already a recovery scheduled, it must have come from a later
 	 * stage (which executes older instructions), hence that recovery overrides
@@ -172,73 +186,81 @@ void PipeState::pipeStageMem() {
 	//if there is no instruction in this pipeline stage, we are done
 	if (!op)
 		return;
-	else {
-		if (op->is_mem == false) {
-//			DPRINTF(DEBUG_PIPE, "clearing memory stage for instruction %x\n",
-//					mem_op->pc);
-			mem_op = NULL;
-			wb_op = op;
-			return;
-		}
-		if (op->memTried == true) {
-			if (op->waitOnPktIssue) {
-				op->waitOnPktIssue = !(data_mem->sendReq(op->memPkt));
-				return;
-			}
-			if (op->readyForNextStage == false)
-				return;
-			else {
-//				DPRINTF(DEBUG_PIPE,
-//						"clearing memory stage for instruction %x\n",
-//						mem_op->pc);
-				Pipe_Op* op = mem_op;
-				mem_op = NULL;
-				wb_op = op;
-				return;
-			}
-		}
-	}
-	op->readyForNextStage = false;
-	op->memTried = true;
-	switch (op->opcode) {
-	case OP_LW:
-	case OP_LH:
-	case OP_LHU:
-	case OP_LB:
-	case OP_LBU: {
-		uint8_t* data = new uint8_t[4];
-		op->memPkt = new Packet(true, false, PacketTypeLoad,
-				(op->mem_addr & ~3), 4, data, currCycle);
-		break;
-	}
-	case OP_SB: {
-		uint8_t* data = new uint8_t;
-		*data = op->mem_value & 0xFF;
-		op->memPkt = new Packet(true, true, PacketTypeStore, (op->mem_addr), 1,
-				data, currCycle);
-		break;
-	}
-	case OP_SH: {
-		uint16_t* data = new uint16_t;
-		*data = op->mem_value & 0xFFFF;
-		op->memPkt = new Packet(true, true, PacketTypeStore, (op->mem_addr), 2,
-				(uint8_t*) data, currCycle);
-		break;
+	
+	if (op->is_mem == false) {
+		mem_op = NULL;
+		wb_op = op;
+		return;
 	}
 
-	case OP_SW: {
-		uint32_t* data = new uint32_t;
-		*data = op->mem_value;
-		op->memPkt = new Packet(true, true, PacketTypeStore, (op->mem_addr), 4,
-				(uint8_t*) data, currCycle);
-		break;
+	// Perform bypassing for stores here
+	if (isStore(op)){
+		if (wb_op && wb_op->reg_dst){
+			op->mem_value = op->reg_src2_value = wb_op->reg_dst_value;	
+		}
+		else{
+			op->mem_value = op->reg_src2_value = REGS[op->reg_src2];
+		}		
 	}
+
+	if (op->memTried == false){
+		op->readyForNextStage = false;
+		op->memTried = true;
+		switch (op->opcode) {
+		case OP_LW:
+		case OP_LH:
+		case OP_LHU:
+		case OP_LB:
+		case OP_LBU: {
+			uint8_t* data = new uint8_t[4];
+			op->memPkt = new Packet(true, false, PacketTypeLoad,
+					(op->mem_addr & ~3), 4, data, currCycle);
+			break;
+		}
+		case OP_SB: {
+			uint8_t* data = new uint8_t;
+			*data = op->mem_value & 0xFF;
+			op->memPkt = new Packet(true, true, PacketTypeStore, (op->mem_addr), 1,
+					data, currCycle);
+			break;
+		}
+		case OP_SH: {
+			uint16_t* data = new uint16_t;
+			*data = op->mem_value & 0xFFFF;
+			op->memPkt = new Packet(true, true, PacketTypeStore, (op->mem_addr), 2,
+					(uint8_t*) data, currCycle);
+			break;
+		}
+
+		case OP_SW: {
+			uint32_t* data = new uint32_t;
+			*data = op->mem_value;
+			op->memPkt = new Packet(true, true, PacketTypeStore, (op->mem_addr), 4,
+					(uint8_t*) data, currCycle);
+			break;
+		}
+		}
+		DPRINTF(DEBUG_PIPE,
+				"sending pkt from memory stage: addr = %x, size = %d, type = %d \n",
+				op->memPkt->addr, op->memPkt->size, op->memPkt->type);
+		op->waitOnPktIssue = !(data_mem->sendReq(op->memPkt));
+		return;
 	}
-	DPRINTF(DEBUG_PIPE,
-			"sending pkt from memory stage: addr = %x, size = %d, type = %d \n",
-			op->memPkt->addr, op->memPkt->size, op->memPkt->type);
-	op->waitOnPktIssue = !(data_mem->sendReq(op->memPkt));
-	return;
+
+	// We've already tried the memory, let's see if it is ready
+	if (op->waitOnPktIssue) {
+		op->waitOnPktIssue = !(data_mem->sendReq(op->memPkt));
+		return;
+	}
+	if (op->readyForNextStage == false)
+		return;
+	else {
+		Pipe_Op* op = mem_op;
+		mem_op = NULL;
+		wb_op = op;
+		return;
+	}
+
 }
 
 void PipeState::pipeStageExecute() {
@@ -297,14 +319,21 @@ void PipeState::pipeStageExecute() {
 	};
 
 	auto regState1 = getRegisterState(op->reg_src1);
-	auto regState2 = getRegisterState(op->reg_src2);
 
 	// Should we stall and wait for register values?
-	if (regState1.state == NotReady || regState2.state == NotReady) return;
+	if (regState1.state == NotReady) return;
 
 	// Apply results
 	if (regState1.state == Ready) op->reg_src1_value = regState1.value;
-	if (regState2.state == Ready) op->reg_src2_value = regState2.value;
+
+	
+
+	if (!isStore(op)){
+		auto regState2 = getRegisterState(op->reg_src2);
+		// If not ready, stall
+		if (regState2.state == NotReady) return;
+		if (regState2.state == Ready) op->reg_src2_value = regState2.value;
+	}
 
 	switch (op->opcode) {
 	case OP_SPECIAL:
@@ -543,7 +572,7 @@ void PipeState::pipeStageExecute() {
 	case OP_SH:
 	case OP_SB:
 		op->mem_addr = op->reg_src1_value + op->se_imm16;
-		op->mem_value = op->reg_src2_value;
+		// op->mem_value = op->reg_src2_value;
 		break;
 	}
 
