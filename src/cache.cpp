@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 #include <cstdio>
+#include <algorithm>
 #include "repl_policy.h"
 #include "next_line_prefetcher.h"
 #include "cache.h"
@@ -92,6 +93,8 @@ bool Cache::sendReq(Packet * pkt){
 */
 void Cache::recvResp(Packet* readRespPkt){
 	// Find misses that are relevant to this data packet
+	ReplacementPolicy *p = new ReplacementPolicy(this);
+
 	prev->recvResp(readRespPkt);
 	return;
 }
@@ -104,15 +107,22 @@ void Cache::Tick(){
 		if (reqQueue.front()->ready_time <= currCycle) {
 			Packet* respPkt = reqQueue.front();
 			reqQueue.pop();
-			
-			bool hit = true;
+
+			int tag = getWay(respPkt->addr);
+			bool hit = tag != -1;
 
 			if (hit){
-				respPkt->data = (uint8_t *)nullptr;
+				// Get the data
+				uint32_t _addr = respPkt->addr / blkSize;
+				uint32_t setIndex = (numSets - 1) & _addr;
+				uint32_t offset = respPkt->addr & (blkSize-1);
+				uint8_t* blockData = blocks[setIndex][tag]->getData();
+
+				respPkt->data = &blockData[offset];
 				respPkt->isReq = false;
 				prev->recvResp(respPkt);
 			}else{
-				// Miss
+				// Miss, send on to next cache
 				next->sendReq(respPkt);
 			}
 		} else {
