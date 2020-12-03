@@ -10,6 +10,7 @@
 #include "base_memory.h"
 #include "pipe.h"
 #include "util.h"
+#include "cache.h"
 
 class Simulator {
 public:
@@ -17,6 +18,9 @@ public:
 	virtual ~Simulator();
 	PipeState * pipe;
 	BaseMemory * main_memory;
+	Cache * cache_l1_I;
+	Cache * cache_l1_D;
+	Cache * cache_l2;
 
 	/*
 	 * Execute a cycle

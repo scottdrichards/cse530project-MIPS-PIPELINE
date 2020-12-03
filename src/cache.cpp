@@ -5,6 +5,7 @@
  */
 
 #include <cstdlib>
+#include <cstdio>
 #include "repl_policy.h"
 #include "next_line_prefetcher.h"
 #include "cache.h"
@@ -74,20 +75,54 @@ int Cache::getWay(uint32_t addr) {
 }
 
 
-/*You should complete this function*/
+/**
+ * This function should be called when this cache is to receive a request for data
+*/
 bool Cache::sendReq(Packet * pkt){
-
-	return true;
+	pkt->ready_time += accessDelay;
+	if (reqQueue.size() < reqQueueCapacity){
+		reqQueue.push(pkt);
+		return true;
+	}
+	return false;
 }
 
-/*You should complete this function*/
+/*
+ * This function should be called when this cache is to receive data in response to a request
+*/
 void Cache::recvResp(Packet* readRespPkt){
-
+	// Find misses that are relevant to this data packet
+	prev->recvResp(readRespPkt);
 	return;
 }
 
 /*You should complete this function*/
 void Cache::Tick(){
+	while (!reqQueue.empty()) {
+		//check if any packet is ready to be serviced (we assume packets are in order
+		// so if one is found that is not ready, none of the remainder are and we exit)
+		if (reqQueue.front()->ready_time <= currCycle) {
+			Packet* respPkt = reqQueue.front();
+			reqQueue.pop();
+			
+			bool hit = true;
+
+			if (hit){
+				respPkt->data = (uint8_t *)nullptr;
+				respPkt->isReq = false;
+				prev->recvResp(respPkt);
+			}else{
+				// Miss
+				next->sendReq(respPkt);
+			}
+		} else {
+			/*
+			 * assume that reqQueue is sorted by ready_time for now
+			 * (because the pipeline is in-order)
+			 */
+			break;
+		}
+	}
 	return;
 }
 

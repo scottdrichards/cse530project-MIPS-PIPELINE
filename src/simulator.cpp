@@ -17,26 +17,55 @@ Simulator::Simulator(MemHrchyInfo* info) {
 	//initializing core
 	pipe = new PipeState();
 
-	/*
-	 * initializing memory hierarchy
-	 *  you should update this for adding the caches
-	 */
+	// Initialize caches
+	cache_l1_I = new Cache(
+			info->cache_size_l1,
+			info->cache_assoc_l1,
+			info->cache_blk_size,
+			(ReplacementPolicy) info->repl_policy_l1i,
+			info->access_delay_l1);
+
+	cache_l1_D = new Cache(
+			info->cache_size_l1,
+			info->cache_assoc_l1,
+			info->cache_blk_size,
+			(ReplacementPolicy) info->repl_policy_l1d,
+			info->access_delay_l1);
+
+	cache_l2 = new Cache(
+			info->cache_size_l2,
+			info->cache_assoc_l2,
+			info->cache_blk_size,
+			(ReplacementPolicy) info->repl_policy_l2,
+			info->access_delay_l2);
+
 	main_memory = new BaseMemory(info->memDelay);
+
+	// Establish cache connections
+	cache_l1_I->prev = pipe;
+	cache_l1_I->next = cache_l2;
+
+	cache_l1_D->prev = pipe;
+	cache_l1_D->next = cache_l2;
+
+	cache_l2->prev = nullptr;// TODO - how to connect to L1 D and I caches?
+	cache_l2->next = main_memory;
+
+	main_memory->prev = cache_l2;
 	main_memory->next = nullptr;
 
-	//set the responder for memory operations
-	main_memory->prev = pipe;
-
-	//set the first memory in the memory-hierarchy
-	pipe->data_mem = main_memory;
-	pipe->inst_mem = main_memory;
+	pipe->inst_mem = cache_l1_I;
+	pipe->data_mem = cache_l1_D;
 }
 
 
 
 void Simulator::cycle() {
-	//check if memory needs to respond to any packet in this cycle
+	// Check memory and caches for updates
 	main_memory->Tick();
+	cache_l2->Tick();
+	cache_l1_I->Tick();
+	cache_l1_D->Tick();
 	//progress of the pipeline in this clock
 	pipe->pipeCycle();
 	pipe->stat_cycles++;
