@@ -23,7 +23,7 @@
 	"ras_size": 16,
 	"access_delay_l1": 1,
 	"access_delay_l2": 10,
-	"memDelay": 40,
+	"memDelay": 0,
 	"writeBack": false,
 	"debugMemory": false,
 	"debugPipe": false,
