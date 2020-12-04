@@ -20,7 +20,7 @@ public:
 	BaseMemory * main_memory;
 	Cache * cache_l1_I;
 	Cache * cache_l1_D;
-	Cache * cache_l2;
+	L2Cache * cache_l2;
 
 	/*
 	 * Execute a cycle

@@ -6,6 +6,7 @@
 
 #ifndef BASE_OBJECT_H_
 #define BASE_OBJECT_H_
+#include <stdio.h>
 #include "util.h"
 
 /*
@@ -40,6 +41,15 @@ public:
 	uint8_t* data;
 	//when should this packet be serviced?
 	uint32_t ready_time;
+	void print(){
+		printf("[Packet] addr: 0x%x, ready at: %4d, type: %2d, size: %2d, write: %d | Data (hex): ",
+			addr, ready_time, type, size, isWrite);
+		for (uint32_t i = 0; i<size && i<16; i++){
+			printf("%02X ",data[i]);
+		}
+		if (size>16) printf("...");
+		printf("\n");
+	}
 };
 
 /*
@@ -51,7 +61,7 @@ public:
 	virtual ~BaseObject();
 
 	//send a request to this base object
-	virtual bool sendReq(Packet * pkt) = 0;
+	virtual bool recvReq(Packet * pkt) = 0;
 	//this base object has received a packet
 	virtual void recvResp(Packet* readRespPkt) = 0;
 };

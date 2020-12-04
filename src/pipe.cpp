@@ -243,13 +243,13 @@ void PipeState::pipeStageMem() {
 		DPRINTF(DEBUG_PIPE,
 				"sending pkt from memory stage: addr = %x, size = %d, type = %d \n",
 				op->memPkt->addr, op->memPkt->size, op->memPkt->type);
-		op->waitOnPktIssue = !(data_mem->sendReq(op->memPkt));
+		op->waitOnPktIssue = !(data_mem->recvReq(op->memPkt));
 		return;
 	}
 
 	// We've already tried the memory, let's see if it is ready
 	if (op->waitOnPktIssue) {
-		op->waitOnPktIssue = !(data_mem->sendReq(op->memPkt));
+		op->waitOnPktIssue = !(data_mem->recvReq(op->memPkt));
 		return;
 	}
 	if (op->readyForNextStage == false)
@@ -732,7 +732,7 @@ void PipeState::pipeStageFetch() {
 	if (fetch_op != NULL) {
 		if (fetch_op->isFetchIssued == false) {
 			//if sending the packet was unsuccessful before, try again
-			fetch_op->isFetchIssued = inst_mem->sendReq(fetch_op->instFetchPkt);
+			fetch_op->isFetchIssued = inst_mem->recvReq(fetch_op->instFetchPkt);
 			return;
 		}
 		if (fetch_op->readyForNextStage == false)
@@ -753,10 +753,10 @@ void PipeState::pipeStageFetch() {
 	uint8_t* data = new uint8_t[4];
 	fetch_op->instFetchPkt = new Packet(true, false, PacketTypeFetch, PC, 4,
 			data, currCycle);
-	DPRINTF(DEBUG_PIPE, "sending pkt from fetch stage with addr %x \n: ",
+	DPRINTF(DEBUG_PIPE, "sending pkt from fetch stage with addr 0x%x \n",
 			fetch_op->instFetchPkt->addr);
 	//try to send the memory request
-	fetch_op->isFetchIssued = inst_mem->sendReq(fetch_op->instFetchPkt);
+	fetch_op->isFetchIssued = inst_mem->recvReq(fetch_op->instFetchPkt);
 	//get the next instruction to fetch from branch predictor
 	uint32_t target = BP->getTarget(PC);
 	if (target == -1) {
@@ -766,15 +766,14 @@ void PipeState::pipeStageFetch() {
 	}
 }
 
-bool PipeState::sendReq(Packet* pkt) {
+bool PipeState::recvReq(Packet* pkt) {
 	assert(false && "Nobody send request to core, Core is the boss :D");
 	return true;
 }
 
 void PipeState::recvResp(Packet* pkt) {
-	DPRINTF(DEBUG_PIPE,
-			"core received a response for pkt : addr = %x, type = %d\n",
-			pkt->addr, pkt->type);
+	DPRINTF(DEBUG_PIPE||DEBUG_CACHE,"Core Received       ");
+	if (DEBUG_PIPE||DEBUG_CACHE) pkt->print();
 	switch (pkt->type) {
 	case PacketTypeFetch:
 		//if the pkt-type is fetch proceed with fetching the instruction

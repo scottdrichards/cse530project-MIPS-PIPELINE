@@ -18,10 +18,12 @@ class Block {
 private:
 	uint8_t blkSize;
 	uint8_t* data;
-	uint32_t tag;
 	bool dirty;
 	bool valid;
 public:
+	// Not sure if we should "modify" existing blocks or delete and replace - modify seems
+	// a touch easier so I moved tag to public from private
+	uint32_t tag;
 	bool getValid() {
 		return valid;
 	}

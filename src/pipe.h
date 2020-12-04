@@ -133,7 +133,7 @@ public:
 	void pipeStageWb();
 
 	//send a memory operation request
-	virtual bool sendReq(Packet * pkt) override;
+	virtual bool recvReq(Packet * pkt) override;
 	//receives a response to the request for a memory operation
 	virtual void recvResp(Packet* readRespPkt) override;
 

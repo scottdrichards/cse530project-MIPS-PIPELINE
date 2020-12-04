@@ -31,7 +31,7 @@ BaseMemory::~BaseMemory() {
 		free(MEM_REGIONS[i].mem);
 }
 
-bool BaseMemory::sendReq(Packet * pkt) {
+bool BaseMemory::recvReq(Packet * pkt) {
 	DPRINTF(DEBUG_MEMORY,
 			"request for main memory for pkt : addr = %x, type = %d\n",
 			pkt->addr, pkt->type);
@@ -46,8 +46,8 @@ bool BaseMemory::sendReq(Packet * pkt) {
 		//update the time to service the packet
 		pkt->ready_time += accessDelay;
 		DPRINTF(DEBUG_MEMORY,
-				"packet is added to memory reqQueue with readyTime %d\n",
-				pkt->ready_time);
+				"Packet - Memory: [recv] addr = %x, ready_time = %d, type = %d\n",
+				pkt->addr, pkt->ready_time, pkt->type);
 		//add the packet to request queue if it has free entry
 		if (reqQueue.size() < reqQueueCapacity) {
 			reqQueue.push(pkt);
@@ -100,7 +100,7 @@ void BaseMemory::Tick() {
 			Packet* respPkt = reqQueue.front();
 			reqQueue.pop();
 			DPRINTF(DEBUG_MEMORY,
-					"main memory send respond for pkt: addr = %x, ready_time = %d\n",
+					"Packet - Memory: [send] addr = %x, ready_time = %d\n",
 					respPkt->addr, respPkt->ready_time);
 			if (respPkt->isWrite) {
 				mem_region_t* mem_region = getMemRegion(respPkt->addr,

@@ -27,7 +27,7 @@ public:
 	virtual void Tick() = 0;
 
 	//send a request to this memory object
-	virtual bool sendReq(Packet * pkt) = 0;
+	virtual bool recvReq(Packet * pkt) = 0;
 
 	//this memory object has received a packet
 	virtual void recvResp(Packet* readRespPkt) = 0;

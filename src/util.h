@@ -19,7 +19,7 @@ extern bool TRACE_MEMORY;
 
 #define DPRINTF(flag, fmt, ...) \
 	if(flag) \
-        fprintf(stdout, "Cycle %9lu : [%s][%s]%d: " fmt, currCycle, __FILE__, __func__, __LINE__, ##__VA_ARGS__);
+        fprintf(stdout, "Cycle %5lu : [%-13s][%-10s]%4d: " fmt, currCycle, __FILE__, __func__, __LINE__, ##__VA_ARGS__);
 
 #define TRACE(flag, cond, fmt, ...) \
 	if((flag) && (cond)) \
@@ -34,7 +34,8 @@ enum PacketSrcType {
 	PacketTypeFetch = 0,
 	PacketTypeLoad = 1,
 	PacketTypeStore = 2,
-	PacketTypePrefetch = 3
+	PacketTypePrefetch = 3,
+	PacketTypeWriteBack = 4
 };
 
 class MemHrchyInfo{

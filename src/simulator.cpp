@@ -18,21 +18,21 @@ Simulator::Simulator(MemHrchyInfo* info) {
 	pipe = new PipeState();
 
 	// Initialize caches
-	cache_l1_I = new Cache(
+	cache_l1_I = new L1ICache(
 			info->cache_size_l1,
 			info->cache_assoc_l1,
 			info->cache_blk_size,
 			(ReplacementPolicy) info->repl_policy_l1i,
 			info->access_delay_l1);
 
-	cache_l1_D = new Cache(
+	cache_l1_D = new L1DCache(
 			info->cache_size_l1,
 			info->cache_assoc_l1,
 			info->cache_blk_size,
 			(ReplacementPolicy) info->repl_policy_l1d,
 			info->access_delay_l1);
 
-	cache_l2 = new Cache(
+	cache_l2 = new L2Cache(
 			info->cache_size_l2,
 			info->cache_assoc_l2,
 			info->cache_blk_size,
@@ -48,7 +48,8 @@ Simulator::Simulator(MemHrchyInfo* info) {
 	cache_l1_D->prev = pipe;
 	cache_l1_D->next = cache_l2;
 
-	cache_l2->prev = nullptr;// TODO - how to connect to L1 D and I caches?
+	cache_l2->prevL1Data = cache_l1_D;
+	cache_l2->prevL1Inst = cache_l1_I;
 	cache_l2->next = main_memory;
 
 	main_memory->prev = cache_l2;
