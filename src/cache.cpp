@@ -38,7 +38,7 @@ Cache::Cache(uint32_t size, uint32_t associativity, uint32_t blkSize,
 			assert(false && "Unknown Replacement Policy");
 	}
 
-	if (type.length()==0) type = "Cache";
+	if (label.length()==0) label = "Cache";
 }
 
 Cache::~Cache() {
@@ -102,7 +102,7 @@ bool Cache::recvReq(Packet * packet){
 	packet->ready_time += accessDelay;
 		
 	// Debug print
-	DPRINTF(DEBUG_CACHE,"%8s recved req ",type.c_str());
+	DPRINTF(DEBUG_CACHE,"%8s recved req ",label.c_str());
 	if (DEBUG_CACHE)packet->print();
 
 	if (reqQueue.size() < reqQueueCapacity){
@@ -123,7 +123,7 @@ bool Cache::recvReq(Packet * packet){
 void Cache::recvResp(Packet* packet){
 	
 	// Debug print
-	DPRINTF(DEBUG_CACHE,"%8s recved rsp ",type.c_str());
+	DPRINTF(DEBUG_CACHE,"%8s recved rsp ",label.c_str());
 	if (DEBUG_CACHE)packet->print();
 
 	// First we need to see if we need to write data to this cache (i.e., was the original request
@@ -157,46 +157,64 @@ void Cache::recvResp(Packet* packet){
 				
 				
 				// Debug print
-				DPRINTF(DEBUG_CACHE,"%8s sending wb ",type.c_str());
+				DPRINTF(DEBUG_CACHE,"%8s sending wb ",label.c_str());
 				if (DEBUG_CACHE)writeBack->print();
 
+				// TODO - buffer this message in case of it being full
 				next->recvReq(writeBack);
 			}
 			// Clear block
 			block->clear(loc.tag);
 		}
+
+		// Copy Data
 		uint8_t* data = block->getData();
 		for(uint32_t i = 0; i<getBlockSize();i++){
 			data[i] = packet->data[i];
 		}
+
+
 		block->setValid(true);
 		// There's no way a packet received here could make the cache dirty
 		block->setDirty(false);
 
-		DPRINTF(DEBUG_CACHE,"%s Writing response 0x%x => set %d tag %d offset %d\n",type.c_str(), packet->addr,loc.set,loc.tag, loc.offset);
+		DPRINTF(DEBUG_CACHE,"%s Writing response 0x%x => set %d tag %d offset %d\n",label.c_str(), packet->addr,loc.set,loc.tag, loc.offset);
 
-		// Do we need to translate the packet?
-		std::vector<Packet*>::iterator found = std::find_if(std::begin(translatedReqQueue),std::end(translatedReqQueue),
+		// Did this apply to a previous packet that is being held? Because it is not out of order, we don't need to service multiple
+		// waiting packets in this section
+		std::vector<Packet*>::iterator found = std::find_if(std::begin(holdingReqQueue),std::end(holdingReqQueue),
 				[loc, this](Packet*originalReq){
 			Location originalLoc = getLocation(originalReq->addr);
 			return loc.set == originalLoc.set && loc.tag == originalLoc.tag;
 		});
 
-		if (found != std::end(translatedReqQueue)){
+		if (found != std::end(holdingReqQueue)){
 			delete packet;
 			packet = *found;
+			auto originalOffset =getLocation(packet->addr).offset;
+			// Was the old one a write? we need to apply it
+			if (packet->isWrite){
+				DPRINTF(DEBUG_CACHE,"%8s applying staged write ",label.c_str());
+				if (DEBUG_CACHE)packet->print();
 
-			uint32_t offset = getLocation(packet->addr).offset;
-			for (uint32_t i=0; i<packet->size; i++){
-				packet->data[i] = data[i+offset];
+				block->setDirty(true);
+				// write the data to cache
+				for (uint32_t i = 0; i< packet->size; i++){
+					data[originalOffset+i] = packet->data[i];
+				}			
+				
+				// Communicate that the write is complete.
+				packet->isReq = false;
+				delete packet->data;
+				packet->data = nullptr;
+			}else{
+				// Not write - we need to grab data for the read
+				for (uint32_t i=0; i<packet->size; i++){
+					packet->data[i] = data[i+originalOffset];
+				}
+
 			}
-		}
-
-
-		// Copy data to packet block
-		for (uint32_t i = 0; i<packet->size;i++){
-			data[i] = packet->data[i];
-		}		
+		}	
 	}
 
 	getPrev(packet)->recvResp(packet);
@@ -204,25 +222,17 @@ void Cache::recvResp(Packet* packet){
 }
 
 /**
- * This translates a read request (e.g., for 1 byte) to a block-size request, making a copy
- * of it;
+ * This will create a copy of a packet but with the correct block size
 */
-Packet* Cache::translateToBlock(Packet* request){
-	if (request->isWrite){
-
-		// Debug print
-		DPRINTF(DEBUG_CACHE," this shouldn't happen"); // this just gets the cycle/location info
-		if (DEBUG_CACHE)request->print();
-
-	}
+Packet* Cache::repeatPacket(Packet* request){
 	uint32_t blockAddress = (request->addr/getBlockSize())*getBlockSize();
 	uint8_t* data = new uint8_t[getBlockSize()];
-	auto translated = new Packet(request->isReq, request->isWrite, request->type, blockAddress,
+	auto duplicatedPacket = new Packet(request->isReq, request->isWrite, request->type, blockAddress,
 			getBlockSize(), data, request->ready_time);
-	return translated;
+	return duplicatedPacket;
 }
 
-/*You should complete this function*/
+/*Processes packets*/
 void Cache::Tick(){
 	while (!reqQueue.empty()) {
 		//check if any request packet is ready to be serviced (we assume packets are in order
@@ -231,7 +241,7 @@ void Cache::Tick(){
 			Packet* packet = reqQueue.front();
 
 			// Debug print
-			DPRINTF(DEBUG_CACHE,"%8s processing ",type.c_str());
+			DPRINTF(DEBUG_CACHE,"%8s processing ",label.c_str());
 			if (DEBUG_CACHE)packet->print();
 
 			reqQueue.pop();
@@ -241,11 +251,15 @@ void Cache::Tick(){
 			if (hit){
 				// Get the address parameters
 				Location loc = getLocation(packet->addr);
-				DPRINTF(DEBUG_CACHE,"%s Cache hit 0x%x => set %d tag %d offset %d\n",type.c_str(), packet->addr,loc.set,loc.tag, loc.offset);
+				DPRINTF(DEBUG_CACHE,"%s Cache hit 0x%x => set %d tag %d offset %d\n",label.c_str(), packet->addr,loc.set,loc.tag, loc.offset);
 				// Get the data
-				uint8_t* blockData = blocks[loc.set][tag]->getData();
+				Block* block = blocks[loc.set][tag];
+				uint8_t* blockData = block->getData();
 				if (packet->isWrite){
-					blockData[loc.offset] = *packet->data;
+					// Write
+					for (uint32_t i = 0; i<packet->size;i++){
+						blockData[loc.offset+i] = packet->data[i];
+					}
 					if (packet->type == PacketTypeWriteBack){
 						// Just kill the writeback, no need to bounce back its status
 						// TODO: Writethrough and other policies
@@ -268,15 +282,25 @@ void Cache::Tick(){
 				}				
 			}else{
 				Location loc = getLocation(packet->addr);
-				DPRINTF(DEBUG_CACHE,"%s Cache miss 0x%x => set %d tag %d\n",type.c_str(), packet->addr,loc.set,loc.tag);
+				DPRINTF(DEBUG_CACHE,"%s Cache miss 0x%x => set %d tag %d\n",label.c_str(), packet->addr,loc.set,loc.tag);
 				// Miss, send on to next cache
 
 				// Do we need to translate a read to be the entire block?
-				if (packet->size != getBlockSize() && !packet->isWrite){
-					Packet* translated = translateToBlock(packet);
-					translatedReqQueue.push_back(packet);
-					packet = translated;
+				if (packet->isWrite){
+					// If it is a write, we need to grab the right block
+					Packet* packetToSend = repeatPacket(packet);
+					holdingReqQueue.push_back(packet);
+					packet = packetToSend;
+					packet->isWrite = false;
 				}
+				else if (packet->size != getBlockSize()){
+					Packet* packetToSend = repeatPacket(packet);
+					holdingReqQueue.push_back(packet);
+					packet = packetToSend;
+				}
+				
+				//TODO: Buffer this in case next stage is full - not absolutely necessary as the stage can hold 100 messages
+				// and I'm not sure we are going over 100 cycles for a mem hit (though multiple things can send mem reqs...)
 				next->recvReq(packet);
 			}
 		} else {

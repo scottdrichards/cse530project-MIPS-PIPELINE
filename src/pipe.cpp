@@ -60,7 +60,7 @@ PipeState::~PipeState() {
 
 void PipeState::pipeCycle() {
 	if (DEBUG_PIPE) {
-		printf("\n\n----\nCycle : %lu\nPIPELINE:\n", currCycle);
+		printf("PIPELINE:\n");
 		printf("DECODE: ");
 		printOp(decode_op);
 		printf("EXEC  : ");

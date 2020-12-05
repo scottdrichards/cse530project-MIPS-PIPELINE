@@ -47,14 +47,14 @@ private:
 	// This is mainly for L1 cache that will receive a byte request
 	// and will have to translate it to a block size, we will hold onto the
 	// request in this queue for when the response happens.
-	std::vector<Packet*>translatedReqQueue;
-	Packet* translateToBlock(Packet* request);
+	std::vector<Packet*>holdingReqQueue;
+	Packet* repeatPacket(Packet* request);
 	// Used to calculate tag setindex and offset with an address
 	Location getLocation(uint32_t addr);
 	// Gets an address from tag, set, and offset
 	uint32_t getAddress(Location location);
 public:
-	std::string type;
+	std::string label;
 	//Pointer to an array of block pointers
 	Block ***blocks;
 	Cache(CACHE_PARAMS_TYPED);
@@ -92,7 +92,7 @@ public:
 	// Pass on constructor to base class of Cache
 	L2Cache(CACHE_PARAMS_TYPED)
 		:Cache(CACHE_PARAMS){
-			type = "L2Cache";
+			label = "L2Cache";
 			next = nullptr;
 		};
 	virtual ~L2Cache(){};
@@ -107,7 +107,7 @@ class L1ICache: public Cache{
 public:
 	L1ICache(CACHE_PARAMS_TYPED)
 		:Cache(CACHE_PARAMS){
-			type = "L1ICache";
+			label = "L1ICache";
 		};
 	virtual ~L1ICache(){};
 };
@@ -115,7 +115,7 @@ class L1DCache: public Cache{
 public:
 	L1DCache(CACHE_PARAMS_TYPED)
 		:Cache(CACHE_PARAMS){
-			type = "L1ICache";
+			label = "L1ICache";
 		};
 	virtual ~L1DCache(){};
 };

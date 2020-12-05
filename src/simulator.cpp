@@ -62,6 +62,15 @@ Simulator::Simulator(MemHrchyInfo* info) {
 
 
 void Simulator::cycle() {
+	int headerLen = 40;
+	if (DEBUG_CACHE||DEBUG_MEMORY||DEBUG_PIPE){
+		std::cout << "\033[7m";
+		std::cout << std::string(headerLen, ' ') << "\n";
+		std::cout << std::string(headerLen, ' ') << '\r';
+		std::cout << std::string(headerLen/2 -5, ' ') << "Cycle: "<<currCycle<<"\n";
+		std::cout << std::string(headerLen, ' ') << "\n";
+		std::cout << "\033[0m";
+	}
 	// Check memory and caches for updates
 	main_memory->Tick();
 	cache_l2->Tick();
@@ -72,6 +81,7 @@ void Simulator::cycle() {
 	pipe->stat_cycles++;
 	// increment the global clock of the simulator
 	currCycle++;
+	if(DEBUG_CACHE||DEBUG_MEMORY||DEBUG_PIPE) std::cout<<"\n";
 }
 
 

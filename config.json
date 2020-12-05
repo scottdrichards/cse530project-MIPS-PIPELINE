@@ -22,13 +22,13 @@
 	"branch_predictor": 2,
 	"ras_size": 16,
 	"access_delay_l1": 1,
-	"access_delay_l2": 2,
-	"memDelay": 3,
+	"access_delay_l2": 1,
+	"memDelay": 1,
 	"writeBack": false,
 	"debugMemory": false,
 	"debugPipe": false,
-	"debugCache": false,
+	"debugCache": true,
 	"debugPrefetch": false,
-	"debugAll": true,
+	"debugAll": false,
 	"traceMemory": false
 }

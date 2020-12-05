@@ -42,12 +42,15 @@ public:
 	//when should this packet be serviced?
 	uint32_t ready_time;
 	void print(){
-		printf("[Packet] addr: 0x%x, ready at: %4d, type: %2d, size: %2d, write: %d | Data (hex): ",
+		printf("[Packet] addr: 0x%x, ready at: %4d, type: %2d, size: %2d, write: %d",
 			addr, ready_time, type, size, isWrite);
-		for (uint32_t i = 0; i<size && i<16; i++){
-			printf("%02X ",data[i]);
+		if ((isWrite && isReq) || (!isWrite && !isReq)){
+			printf(" | Data (hex): ");
+			for (uint32_t i = 0; i<size && i<16; i++){
+				printf("%02X ",data[i]);
+			}
+			if (size>16) printf("...");
 		}
-		if (size>16) printf("...");
 		printf("\n");
 	}
 };
