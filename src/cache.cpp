@@ -191,6 +191,7 @@ void Cache::recvResp(Packet* packet){
 		if (found != std::end(holdingReqQueue)){
 			delete packet;
 			packet = *found;
+			holdingReqQueue.erase(found);
 			auto originalOffset =getLocation(packet->addr).offset;
 			// Was the old one a write? we need to apply it
 			if (packet->isWrite){
