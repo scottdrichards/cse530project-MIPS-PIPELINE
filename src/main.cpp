@@ -164,6 +164,7 @@ void help() {
 /* Purpose   : Read a command from standard input.             */
 /*                                                             */
 /***************************************************************/
+bool hasRun = false;
 bool getCommand() {
 	char buffer[20];
 	int start, stop, cycles;
@@ -173,9 +174,9 @@ bool getCommand() {
 
 	//End of commands
 	char* unattendedEnv = getenv("unattended");
-	if (unattendedEnv && strcmp(unattendedEnv,"true")==0){
+	if (unattendedEnv && strcmp(unattendedEnv,"true")==0 && !hasRun){
 		// Only run once
-		setenv("unattended","false", true);
+		hasRun = true;
 		printf("g");
 		buffer[0]='g';
 	}

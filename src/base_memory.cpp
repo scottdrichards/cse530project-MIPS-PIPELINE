@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 #include "base_memory.h"
 #include "util.h"
 
@@ -31,10 +32,7 @@ BaseMemory::~BaseMemory() {
 		free(MEM_REGIONS[i].mem);
 }
 
-bool BaseMemory::sendReq(Packet * pkt) {
-	DPRINTF(DEBUG_MEMORY,
-			"request for main memory for pkt : addr = %x, type = %d\n",
-			pkt->addr, pkt->type);
+bool BaseMemory::recvReq(Packet * pkt) {
 
 	TRACE(TRACE_MEMORY, pkt->type == PacketTypeStore,
 			"mdump 0x%x 0x%x\n", pkt->addr, pkt->addr + pkt->size);
@@ -45,12 +43,12 @@ bool BaseMemory::sendReq(Packet * pkt) {
 	if (mem_region) {
 		//update the time to service the packet
 		pkt->ready_time += accessDelay;
-		DPRINTF(DEBUG_MEMORY,
-				"packet is added to memory reqQueue with readyTime %d\n",
-				pkt->ready_time);
+		
+		DPRINTPACKET("Memory","Receive", pkt);
+		
 		//add the packet to request queue if it has free entry
-		if (reqQueue.size() < reqQueueCapacity) {
-			reqQueue.push(pkt);
+		if (pendingPackets.size() < reqQueueCapacity) {
+			pendingPackets.push_back(pkt);
 			//return true since memory received the request successfully
 			return true;
 		} else {
@@ -94,14 +92,14 @@ BaseMemory::getMemRegion(uint32_t addr, uint32_t size) {
 }
 
 void BaseMemory::Tick() {
-	while (!reqQueue.empty()) {
+	while (!pendingPackets.empty()) {
 		//check if any packet is ready to be serviced
-		if (reqQueue.front()->ready_time <= currCycle) {
-			Packet* respPkt = reqQueue.front();
-			reqQueue.pop();
-			DPRINTF(DEBUG_MEMORY,
-					"main memory send respond for pkt: addr = %x, ready_time = %d\n",
-					respPkt->addr, respPkt->ready_time);
+		if (pendingPackets.front()->ready_time <= currCycle) {
+			Packet* respPkt = pendingPackets.front();
+			pendingPackets.erase(pendingPackets.begin());
+			
+			DPRINTPACKET("Memory","Send", respPkt);
+			
 			if (respPkt->isWrite) {
 				mem_region_t* mem_region = getMemRegion(respPkt->addr,
 						respPkt->size);
@@ -120,7 +118,12 @@ void BaseMemory::Tick() {
 				 * for this respond packet. For now, prev for memory is core but
 				 * you should update the prev since you are adding the caches
 				 */
-				prev->recvResp(respPkt);
+				if (respPkt->type == PacketTypeWriteBack){
+					delete respPkt;
+				}
+				else{
+					prev->recvResp(respPkt);
+				}
 			} else {
 				mem_region_t* mem_region = getMemRegion(respPkt->addr,
 						respPkt->size);
@@ -139,7 +142,7 @@ void BaseMemory::Tick() {
 			}
 		} else {
 			/*
-			 * assume that reqQueue is sorted by ready_time for now
+			 * assume that pendingRequests is sorted by ready_time for now
 			 * (because the pipeline is in-order)
 			 */
 			break;

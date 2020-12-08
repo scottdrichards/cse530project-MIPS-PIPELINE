@@ -37,7 +37,7 @@ class BaseMemory: public AbstractMemory {
 public:
 	BaseMemory(uint32_t mem_delay);
 	virtual ~BaseMemory();
-	virtual bool sendReq(Packet * pkt) override;
+	virtual bool recvReq(Packet * pkt) override;
 	virtual void recvResp(Packet* readRespPkt) override;
 	virtual void Tick() override;
 	void dumpRead(uint32_t addr, uint32_t size, uint8_t* data);

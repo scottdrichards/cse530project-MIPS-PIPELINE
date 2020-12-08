@@ -19,7 +19,9 @@ extern bool TRACE_MEMORY;
 
 #define DPRINTF(flag, fmt, ...) \
 	if(flag) \
-        fprintf(stdout, "Cycle %9lu : [%s][%s]%d: " fmt, currCycle, __FILE__, __func__, __LINE__, ##__VA_ARGS__);
+        fprintf(stdout, "Cycle %5lu : [%-20s][%-20s]%4d: " fmt, currCycle, __FILE__, __func__, __LINE__, ##__VA_ARGS__);
+#define DPRINTPACKET(src, message, packet)\
+	DPRINTF(DEBUG_CACHE, "%8s: %-25s %s\n",src,message,packet->toString().c_str())
 
 #define TRACE(flag, cond, fmt, ...) \
 	if((flag) && (cond)) \
@@ -34,7 +36,8 @@ enum PacketSrcType {
 	PacketTypeFetch = 0,
 	PacketTypeLoad = 1,
 	PacketTypeStore = 2,
-	PacketTypePrefetch = 3
+	PacketTypePrefetch = 3,
+	PacketTypeWriteBack = 4
 };
 
 class MemHrchyInfo{
@@ -66,5 +69,14 @@ public:
 		memDelay = 100;
 	}
 };
+
+/**
+ * Terminal codes
+*/
+#define TERM_CODE_START "\033["
+#define TERM_CODE_END "m"
+#define TERM_CODE(x) TERM_CODE_START x TERM_CODE_END
+#define TERM_INVERSE TERM_CODE("7")
+#define TERM_RESET TERM_CODE("0")
 
 #endif

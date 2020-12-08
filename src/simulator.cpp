@@ -17,31 +17,73 @@ Simulator::Simulator(MemHrchyInfo* info) {
 	//initializing core
 	pipe = new PipeState();
 
-	/*
-	 * initializing memory hierarchy
-	 *  you should update this for adding the caches
-	 */
+	// Initialize caches
+	cache_l1_I = new L1ICache(
+			info->cache_size_l1,
+			info->cache_assoc_l1,
+			info->cache_blk_size,
+			(ReplacementPolicy) info->repl_policy_l1i,
+			info->access_delay_l1);
+
+	cache_l1_D = new L1DCache(
+			info->cache_size_l1,
+			info->cache_assoc_l1,
+			info->cache_blk_size,
+			(ReplacementPolicy) info->repl_policy_l1d,
+			info->access_delay_l1);
+
+	cache_l2 = new L2Cache(
+			info->cache_size_l2,
+			info->cache_assoc_l2,
+			info->cache_blk_size,
+			(ReplacementPolicy) info->repl_policy_l2,
+			info->access_delay_l2);
+
 	main_memory = new BaseMemory(info->memDelay);
+
+	// Establish cache connections
+	cache_l1_I->prev = pipe;
+	cache_l1_I->next = cache_l2;
+
+	cache_l1_D->prev = pipe;
+	cache_l1_D->next = cache_l2;
+
+	cache_l2->prevL1Data = cache_l1_D;
+	cache_l2->prevL1Inst = cache_l1_I;
+	cache_l2->next = main_memory;
+
+	main_memory->prev = cache_l2;
 	main_memory->next = nullptr;
 
-	//set the responder for memory operations
-	main_memory->prev = pipe;
-
-	//set the first memory in the memory-hierarchy
-	pipe->data_mem = main_memory;
-	pipe->inst_mem = main_memory;
+	pipe->inst_mem = cache_l1_I;
+	pipe->data_mem = cache_l1_D;
 }
 
-
+void printCycleHeader(){
+	int headerLen = 40;
+	std::cout << TERM_INVERSE;
+	std::cout << std::string(headerLen, ' ') << "\n";
+	std::cout << std::string(headerLen, ' ') << '\r';
+	std::cout << std::string(headerLen/2 -5, ' ') << "Cycle: "<<currCycle<<"\n";
+	std::cout << std::string(headerLen, ' ') << "\n";
+	std::cout << TERM_RESET;
+}
 
 void Simulator::cycle() {
-	//check if memory needs to respond to any packet in this cycle
+	if (DEBUG_CACHE||DEBUG_MEMORY||DEBUG_PIPE) printCycleHeader();
+
+	// Check memory and caches for updates
 	main_memory->Tick();
+	cache_l2->Tick();
+	cache_l1_I->Tick();
+	cache_l1_D->Tick();
 	//progress of the pipeline in this clock
 	pipe->pipeCycle();
 	pipe->stat_cycles++;
 	// increment the global clock of the simulator
 	currCycle++;
+	
+	if(DEBUG_CACHE||DEBUG_MEMORY||DEBUG_PIPE) std::cout<<"\n";
 }
 
 
@@ -80,8 +122,10 @@ void Simulator::go() {
 
 uint32_t Simulator::readMemForDump(uint32_t address) {
 	uint32_t data;
-	//you should update this since adding the caches
-	pipe->data_mem->dumpRead(address, 4, (uint8_t*) &data);
+	main_memory->dumpRead(address, 4, (uint8_t*) &data);
+	cache_l2->dumpRead(address, 4, (uint8_t*) &data);
+	cache_l1_I->dumpRead(address, 4, (uint8_t*) &data);
+	cache_l1_D->dumpRead(address, 4, (uint8_t*) &data);
 	return data;
 }
 

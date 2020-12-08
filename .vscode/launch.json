@@ -5,15 +5,33 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug Current Test File",
+            "name": "Run Compare Script",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/run",
+            "args": [
+                "noDebug.json",
+                "${input:testFile}"
+            ],
+            "console": "integratedTerminal",
+            "preLaunchTask": "Run Makefile"
+        },
+        {
+            "name": "Debug Simulator",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/simulator",
-            "args": ["config.json", "${input:testFile}"],
+            "args": [
+                "config.json",
+                "${input:testFile}"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment":[
-                {"name":"unattended", "value":"true"}
+            "environment": [
+                {
+                    "name": "unattended",
+                    "value": "true"
+                }
             ],
             "externalConsole": false,
             "MIMode": "gdb",
@@ -30,9 +48,10 @@
     "inputs": [
         {
             "id": "testFile",
-            "type":"pickString",
+            "type": "pickString",
             "description": "Which test would you like to run?",
-            "options": ["inputs/branch/test1.x",
+            "options": [
+                "inputs/branch/test1.x",
                 "inputs/cache/test1.x",
                 "inputs/inst/add.x",
                 "inputs/inst/addi.x",
@@ -123,7 +142,8 @@
                 "inputs/random/random2.x",
                 "inputs/random/random3.x",
                 "inputs/random/random4.x",
-                "inputs/random/random5.x"]
+                "inputs/random/random5.x"
+            ]
         }
     ]
 }

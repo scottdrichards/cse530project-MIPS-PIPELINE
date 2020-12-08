@@ -59,18 +59,7 @@ PipeState::~PipeState() {
 }
 
 void PipeState::pipeCycle() {
-	if (DEBUG_PIPE) {
-		printf("\n\n----\nCycle : %lu\nPIPELINE:\n", currCycle);
-		printf("DECODE: ");
-		printOp(decode_op);
-		printf("EXEC  : ");
-		printOp(execute_op);
-		printf("MEM   : ");
-		printOp(mem_op);
-		printf("WB    : ");
-		printOp(wb_op);
-		printf("\n");
-	}
+	if (DEBUG_PIPE) print();
 
 	pipeStageWb();
 	if(RUN_BIT == false)
@@ -240,16 +229,16 @@ void PipeState::pipeStageMem() {
 			break;
 		}
 		}
-		DPRINTF(DEBUG_PIPE,
-				"sending pkt from memory stage: addr = %x, size = %d, type = %d \n",
-				op->memPkt->addr, op->memPkt->size, op->memPkt->type);
-		op->waitOnPktIssue = !(data_mem->sendReq(op->memPkt));
+		
+		DPRINTPACKET("Pipe-Mem", "Sending", op->memPkt);
+
+		op->waitOnPktIssue = !(data_mem->recvReq(op->memPkt));
 		return;
 	}
 
-	// We've already tried the memory, let's see if it is ready
+	// Cache wasn't ready last time, try again
 	if (op->waitOnPktIssue) {
-		op->waitOnPktIssue = !(data_mem->sendReq(op->memPkt));
+		op->waitOnPktIssue = !(data_mem->recvReq(op->memPkt));
 		return;
 	}
 	if (op->readyForNextStage == false)
@@ -732,7 +721,7 @@ void PipeState::pipeStageFetch() {
 	if (fetch_op != NULL) {
 		if (fetch_op->isFetchIssued == false) {
 			//if sending the packet was unsuccessful before, try again
-			fetch_op->isFetchIssued = inst_mem->sendReq(fetch_op->instFetchPkt);
+			fetch_op->isFetchIssued = inst_mem->recvReq(fetch_op->instFetchPkt);
 			return;
 		}
 		if (fetch_op->readyForNextStage == false)
@@ -753,10 +742,11 @@ void PipeState::pipeStageFetch() {
 	uint8_t* data = new uint8_t[4];
 	fetch_op->instFetchPkt = new Packet(true, false, PacketTypeFetch, PC, 4,
 			data, currCycle);
-	DPRINTF(DEBUG_PIPE, "sending pkt from fetch stage with addr %x \n: ",
-			fetch_op->instFetchPkt->addr);
+			
+	DPRINTPACKET("Pipe-FET", "Sending", fetch_op->instFetchPkt);
+	
 	//try to send the memory request
-	fetch_op->isFetchIssued = inst_mem->sendReq(fetch_op->instFetchPkt);
+	fetch_op->isFetchIssued = inst_mem->recvReq(fetch_op->instFetchPkt);
 	//get the next instruction to fetch from branch predictor
 	uint32_t target = BP->getTarget(PC);
 	if (target == -1) {
@@ -766,15 +756,14 @@ void PipeState::pipeStageFetch() {
 	}
 }
 
-bool PipeState::sendReq(Packet* pkt) {
+bool PipeState::recvReq(Packet* pkt) {
 	assert(false && "Nobody send request to core, Core is the boss :D");
 	return true;
 }
 
 void PipeState::recvResp(Packet* pkt) {
-	DPRINTF(DEBUG_PIPE,
-			"core received a response for pkt : addr = %x, type = %d\n",
-			pkt->addr, pkt->type);
+	DPRINTPACKET("Core", "Received", pkt);
+	
 	switch (pkt->type) {
 	case PacketTypeFetch:
 		//if the pkt-type is fetch proceed with fetching the instruction
@@ -835,8 +824,30 @@ void PipeState::recvResp(Packet* pkt) {
 			assert(false && "Invalid store response from memory or cache");
 		}
 		break;
+	case PacketTypeWriteBack:
+		// These don't seem to matter :D
+		break; 
 	default:
 		assert(false && "Invalid response from memory or cache");
 	}
 	delete pkt;
+}
+
+void PipeState::print(){
+	printf("\nPIPELINE:\n");
+	printf("DECODE: ");
+	printOp(decode_op);
+	printf("EXEC  : ");
+	printOp(execute_op);
+	printf("MEM   : ");
+	printOp(mem_op);
+	printf("WB    : ");
+	printOp(wb_op);
+	printf("\n");
+	std::cout<< "Registers:"<<std::endl;
+	for (int i = 0; i< 32; i++){
+		std::cout<<"["<<std::setw(2)<<i<<"]:"<<std::setfill('0') << std::setw(8) << std::hex <<REGS[i];
+		if (i%2) std::cout<<std::endl;
+	};
+	std::cout<< std::dec;
 }
