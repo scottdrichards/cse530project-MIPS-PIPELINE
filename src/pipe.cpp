@@ -844,10 +844,10 @@ void PipeState::print(){
 	printf("WB    : ");
 	printOp(wb_op);
 	printf("\n");
-	std::cout<< "Registers:"<<std::endl;
-	for (int i = 0; i< 32; i++){
-		std::cout<<"["<<std::setw(2)<<i<<"]:"<<std::setfill('0') << std::setw(8) << std::hex <<REGS[i];
-		if (i%2) std::cout<<std::endl;
-	};
+	// std::cout<< "Registers:"<<std::endl;
+	// for (int i = 0; i< 32; i++){
+	// 	std::cout<<"["<<std::setw(2)<<i<<"]:"<<std::setfill('0') << std::setw(8) << std::hex <<REGS[i];
+	// 	if (i%2) std::cout<<std::endl;
+	// };
 	std::cout<< std::dec;
 }

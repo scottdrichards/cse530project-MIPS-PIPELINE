@@ -58,7 +58,7 @@ private:
 	 * Returns a matching packet that is pending (e.g., a write or a read that was 
 	 * translated to a cache block size)
 	*/
-	Packet* getStalledPacket(Location loc);
+	Packet* getStalledPacket(Packet* packet);
 	/***
 	 * This is used to apply a packet to a found and ready cache block
 	 */

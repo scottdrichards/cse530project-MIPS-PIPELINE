@@ -18,9 +18,8 @@
  */
 class Packet {
 public:
-
 	Packet(bool _isReq, bool _isWrite, PacketSrcType _type, uint32_t _addr,
-			uint32_t _size, uint8_t* _data, uint32_t _ready_time) {
+			uint32_t _size, uint8_t* _data, uint32_t _ready_time, Packet* _original_packet) {
 		isReq = _isReq;
 		isWrite = _isWrite;
 		type = _type;
@@ -28,7 +27,12 @@ public:
 		size = _size;
 		data = _data;
 		ready_time = _ready_time;
+		originalPacket = _original_packet;
 	}
+
+	// Overloaded constructor that sets original packet as null
+	Packet(bool _isReq, bool _isWrite, PacketSrcType _type, uint32_t _addr, uint32_t _size, uint8_t* _data, uint32_t _ready_time)
+			:Packet(_isReq, _isWrite, _type, _addr, _size, _data, _ready_time, 0){}
 	virtual ~Packet() {
 		if (data != nullptr)
 			delete data;
@@ -44,6 +48,8 @@ public:
 	uint8_t* data;
 	//when should this packet be serviced?
 	uint32_t ready_time;
+	// Label is used to track the request and spawned requests in response to the original packet
+	Packet* originalPacket;
 	std::string toString(){
 		std::stringstream ss;
 		ss<<"[Packet] addr: 0x"<< std::uppercase << std::setfill('0') << std::setw(8) << std::hex << addr<< std::dec;
@@ -68,6 +74,7 @@ public:
 		}
 		ss<<", size: "<<std::setw(2)<<size;
 		ss<<", write: "<<std::setw(1)<<isWrite;
+		ss<<", OG Pkt: "<< std::uppercase << std::setfill('0') << std::setw(8) << std::hex << originalPacket<< std::dec;
 		if (isWrite == isReq){
 			ss<<" | Data (hex): ";
 			int count = size>16?16:size;

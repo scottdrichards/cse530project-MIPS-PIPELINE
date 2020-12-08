@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/run",
             "args": [
-                "noDebug.json",
+                "config.json",
                 "${input:testFile}"
             ],
             "console": "integratedTerminal",

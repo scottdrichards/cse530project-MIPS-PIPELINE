@@ -116,16 +116,19 @@ void overwriteData(uint8_t* dest, uint8_t* source, uint32_t numberItems){
 	}
 } 
 
-Packet* Cache::getStalledPacket(Location loc){
+Packet* Cache::getStalledPacket(Packet* packet){
 	std::vector<Packet*>::iterator found = std::find_if(std::begin(stalledReqQueue),std::end(stalledReqQueue),
-			[loc, this](Packet*originalReq){
-		Location originalLoc = getLocation(originalReq->addr);
-		return loc.set == originalLoc.set && loc.tag == originalLoc.tag;
+			[packet, this](Packet*stalledPacket){
+		if (stalledPacket->originalPacket){
+			return packet->originalPacket == stalledPacket->originalPacket;
+		}
+		return packet->originalPacket==stalledPacket;
 	});
 
 	if (found != std::end(stalledReqQueue)){
+		Packet* retPacket = *found;
 		stalledReqQueue.erase(found);
-		return *found;
+		return retPacket;
 	}
 	return nullptr;
 }
@@ -245,7 +248,7 @@ void Cache::recvResp(Packet* packet){
 		DPRINTPACKET(label.c_str(),"Writing to packet", packet);
 
 		// Now, was there a pending packet that needs to be serviced?
-		Packet* stalledPacket = getStalledPacket(loc);
+		Packet* stalledPacket = getStalledPacket(packet);
 		if (stalledPacket){
 			DPRINTPACKET(label.c_str(),"Applying stalled packet", stalledPacket);
 			applyPacketToCacheBlock(stalledPacket,block);
@@ -267,7 +270,7 @@ Packet* Cache::repeatPacket(Packet* request){
 	uint8_t* data = new uint8_t[getBlockSize()];
 
 	auto duplicatedPacket = new Packet(request->isReq, request->isWrite, request->type, blockAddress,
-			getBlockSize(), data, request->ready_time);
+			getBlockSize(), data, request->ready_time, request->originalPacket?request->originalPacket:request);
 
 	return duplicatedPacket;
 }
@@ -275,9 +278,9 @@ Packet* Cache::repeatPacket(Packet* request){
 /*Processes packets*/
 void Cache::Tick(){
 	// Push the ready packets to the end of the vector and returns the iterator at the dividing
-	auto readyStart = std::remove_if(pendingPackets.begin(),pendingPackets.end(),[this](Packet* packet){
+	auto readyEnd = std::partition(pendingPackets.begin(),pendingPackets.end(),[this](Packet* packet){
 		return packet->ready_time<=currCycle;});
-	auto readyEnd = pendingPackets.end();
+	auto readyStart = pendingPackets.begin();
 
 	// Process each ready packet
 	std::for_each(readyStart, readyEnd,[this](Packet* packet){
