@@ -27,7 +27,7 @@
 	"writeBack": false,
 	"debugMemory": false,
 	"debugPipe": false,
-	"debugCache": false,
+	"debugCache": true,
 	"debugPrefetch": false,
 	"debugAll": false,
 	"traceMemory": false
