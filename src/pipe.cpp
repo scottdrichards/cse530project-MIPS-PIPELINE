@@ -59,18 +59,7 @@ PipeState::~PipeState() {
 }
 
 void PipeState::pipeCycle() {
-	if (DEBUG_PIPE) {
-		printf("PIPELINE:\n");
-		printf("DECODE: ");
-		printOp(decode_op);
-		printf("EXEC  : ");
-		printOp(execute_op);
-		printf("MEM   : ");
-		printOp(mem_op);
-		printf("WB    : ");
-		printOp(wb_op);
-		printf("\n");
-	}
+	if (DEBUG_PIPE) print();
 
 	pipeStageWb();
 	if(RUN_BIT == false)
@@ -240,14 +229,14 @@ void PipeState::pipeStageMem() {
 			break;
 		}
 		}
-		DPRINTF(DEBUG_PIPE,
-				"sending pkt from memory stage: addr = %x, size = %d, type = %d \n",
-				op->memPkt->addr, op->memPkt->size, op->memPkt->type);
+		
+		DPRINTPACKET("Pipe-Mem", "Sending", op->memPkt);
+
 		op->waitOnPktIssue = !(data_mem->recvReq(op->memPkt));
 		return;
 	}
 
-	// We've already tried the memory, let's see if it is ready
+	// Cache wasn't ready last time, try again
 	if (op->waitOnPktIssue) {
 		op->waitOnPktIssue = !(data_mem->recvReq(op->memPkt));
 		return;
@@ -753,8 +742,9 @@ void PipeState::pipeStageFetch() {
 	uint8_t* data = new uint8_t[4];
 	fetch_op->instFetchPkt = new Packet(true, false, PacketTypeFetch, PC, 4,
 			data, currCycle);
-	DPRINTF(DEBUG_PIPE, "sending pkt from fetch stage with addr 0x%x \n",
-			fetch_op->instFetchPkt->addr);
+			
+	DPRINTPACKET("Pipe-FET", "Sending", fetch_op->instFetchPkt);
+	
 	//try to send the memory request
 	fetch_op->isFetchIssued = inst_mem->recvReq(fetch_op->instFetchPkt);
 	//get the next instruction to fetch from branch predictor
@@ -772,8 +762,8 @@ bool PipeState::recvReq(Packet* pkt) {
 }
 
 void PipeState::recvResp(Packet* pkt) {
-	DPRINTF(DEBUG_PIPE||DEBUG_CACHE,"Core Received       ");
-	if (DEBUG_PIPE||DEBUG_CACHE) pkt->print();
+	DPRINTPACKET("Core", "Received", pkt);
+	
 	switch (pkt->type) {
 	case PacketTypeFetch:
 		//if the pkt-type is fetch proceed with fetching the instruction
@@ -834,8 +824,30 @@ void PipeState::recvResp(Packet* pkt) {
 			assert(false && "Invalid store response from memory or cache");
 		}
 		break;
+	case PacketTypeWriteBack:
+		// These don't seem to matter :D
+		break; 
 	default:
 		assert(false && "Invalid response from memory or cache");
 	}
 	delete pkt;
+}
+
+void PipeState::print(){
+	printf("\nPIPELINE:\n");
+	printf("DECODE: ");
+	printOp(decode_op);
+	printf("EXEC  : ");
+	printOp(execute_op);
+	printf("MEM   : ");
+	printOp(mem_op);
+	printf("WB    : ");
+	printOp(wb_op);
+	printf("\n");
+	std::cout<< "Registers:"<<std::endl;
+	for (int i = 0; i< 32; i++){
+		std::cout<<"["<<std::setw(2)<<i<<"]:"<<std::setfill('0') << std::setw(8) << std::hex <<REGS[i];
+		if (i%2) std::cout<<std::endl;
+	};
+	std::cout<< std::dec;
 }

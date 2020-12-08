@@ -47,12 +47,26 @@ private:
 	// This is mainly for L1 cache that will receive a byte request
 	// and will have to translate it to a block size, we will hold onto the
 	// request in this queue for when the response happens.
-	std::vector<Packet*>holdingReqQueue;
+	std::vector<Packet*>stalledReqQueue;
 	Packet* repeatPacket(Packet* request);
-	// Used to calculate tag setindex and offset with an address
+	// Used to calculate tag set and offset with an address
 	Location getLocation(uint32_t addr);
 	// Gets an address from tag, set, and offset
 	uint32_t getAddress(Location location);
+	
+	/**
+	 * Returns a matching packet that is pending (e.g., a write or a read that was 
+	 * translated to a cache block size)
+	*/
+	Packet* getStalledPacket(Location loc);
+	/***
+	 * This is used to apply a packet to a found and ready cache block
+	 */
+	void applyPacketToCacheBlock(Packet* packet, Block* block);
+	/**
+	 * Checks if writeback is required and performs it if so
+	*/
+	bool writeBack(Block* block, uint32_t set);
 public:
 	std::string label;
 	//Pointer to an array of block pointers
@@ -67,6 +81,10 @@ public:
 	virtual bool recvReq(Packet * pkt) override;
 	virtual void recvResp(Packet* readRespPkt) override;
 	virtual void Tick() override;
+	/**
+	 * This will give the current way holding the data, -1 means
+	 * all ways are full
+	*/
 	int getWay(uint32_t addr);
 	virtual uint32_t getAssociativity();
 	virtual uint32_t getNumSets();
@@ -115,7 +133,7 @@ class L1DCache: public Cache{
 public:
 	L1DCache(CACHE_PARAMS_TYPED)
 		:Cache(CACHE_PARAMS){
-			label = "L1ICache";
+			label = "L1DCache";
 		};
 	virtual ~L1DCache(){};
 };

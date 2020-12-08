@@ -59,18 +59,19 @@ Simulator::Simulator(MemHrchyInfo* info) {
 	pipe->data_mem = cache_l1_D;
 }
 
-
+void printCycleHeader(){
+	int headerLen = 40;
+	std::cout << TERM_INVERSE;
+	std::cout << std::string(headerLen, ' ') << "\n";
+	std::cout << std::string(headerLen, ' ') << '\r';
+	std::cout << std::string(headerLen/2 -5, ' ') << "Cycle: "<<currCycle<<"\n";
+	std::cout << std::string(headerLen, ' ') << "\n";
+	std::cout << TERM_RESET;
+}
 
 void Simulator::cycle() {
-	int headerLen = 40;
-	if (DEBUG_CACHE||DEBUG_MEMORY||DEBUG_PIPE){
-		std::cout << "\033[7m";
-		std::cout << std::string(headerLen, ' ') << "\n";
-		std::cout << std::string(headerLen, ' ') << '\r';
-		std::cout << std::string(headerLen/2 -5, ' ') << "Cycle: "<<currCycle<<"\n";
-		std::cout << std::string(headerLen, ' ') << "\n";
-		std::cout << "\033[0m";
-	}
+	if (DEBUG_CACHE||DEBUG_MEMORY||DEBUG_PIPE) printCycleHeader();
+
 	// Check memory and caches for updates
 	main_memory->Tick();
 	cache_l2->Tick();
@@ -81,6 +82,7 @@ void Simulator::cycle() {
 	pipe->stat_cycles++;
 	// increment the global clock of the simulator
 	currCycle++;
+	
 	if(DEBUG_CACHE||DEBUG_MEMORY||DEBUG_PIPE) std::cout<<"\n";
 }
 
@@ -120,8 +122,10 @@ void Simulator::go() {
 
 uint32_t Simulator::readMemForDump(uint32_t address) {
 	uint32_t data;
-	//you should update this since adding the caches
-	pipe->data_mem->dumpRead(address, 4, (uint8_t*) &data);
+	main_memory->dumpRead(address, 4, (uint8_t*) &data);
+	cache_l2->dumpRead(address, 4, (uint8_t*) &data);
+	cache_l1_I->dumpRead(address, 4, (uint8_t*) &data);
+	cache_l1_D->dumpRead(address, 4, (uint8_t*) &data);
 	return data;
 }
 

@@ -7,6 +7,9 @@
 #ifndef BASE_OBJECT_H_
 #define BASE_OBJECT_H_
 #include <stdio.h>
+#include <sstream>
+#include <string>
+#include <iomanip>      // std::setfill, std::setw
 #include "util.h"
 
 /*
@@ -41,17 +44,39 @@ public:
 	uint8_t* data;
 	//when should this packet be serviced?
 	uint32_t ready_time;
-	void print(){
-		printf("[Packet] addr: 0x%x, ready at: %4d, type: %2d, size: %2d, write: %d",
-			addr, ready_time, type, size, isWrite);
-		if ((isWrite && isReq) || (!isWrite && !isReq)){
-			printf(" | Data (hex): ");
-			for (uint32_t i = 0; i<size && i<16; i++){
-				printf("%02X ",data[i]);
-			}
-			if (size>16) printf("...");
+	std::string toString(){
+		std::stringstream ss;
+		ss<<"[Packet] addr: 0x"<< std::uppercase << std::setfill('0') << std::setw(8) << std::hex << addr<< std::dec;
+		ss<<", ready at: "<<std::setw(4)<<ready_time;
+		ss<<", type: "<<std::setw(2);
+		switch (type){
+			case PacketTypeFetch:
+				ss<<"FE";
+				break;
+			case PacketTypeLoad:
+				ss<<"LD";
+				break;
+			case PacketTypeStore:
+				ss<<"ST";
+				break;
+			case PacketTypePrefetch:
+				ss<<"PF";
+				break;
+			case PacketTypeWriteBack:
+				ss<<"WB";
+				break;
 		}
-		printf("\n");
+		ss<<", size: "<<std::setw(2)<<size;
+		ss<<", write: "<<std::setw(1)<<isWrite;
+		if (isWrite == isReq){
+			ss<<" | Data (hex): ";
+			int count = size>16?16:size;
+			if (size>16) ss<<"... ";
+			for (uint32_t i = 0; i<count; i++){
+				ss<< std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(data[count-i-1])<<" "<<std::dec;
+			}
+		}
+		return ss.str();
 	}
 };
 

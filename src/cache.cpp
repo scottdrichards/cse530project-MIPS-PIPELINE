@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <algorithm>
+#include <cstring>
 #include "repl_policy.h"
 #include "next_line_prefetcher.h"
 #include "cache.h"
@@ -93,20 +94,53 @@ int Cache::getWay(uint32_t addr) {
 	return -1;
 }
 
+/**
+ * Creates a copy of the data on the heap and returns it
+*/
+uint8_t* duplicateData(uint8_t* source, uint32_t numberItems){
+	uint8_t* dest = new uint8_t[numberItems];
+	std::memcpy(dest,source,numberItems*sizeof(uint8_t));
+	for(uint32_t i = 0; i<numberItems;i++){
+		dest[i] = source[i];
+	}
+	return dest;
+}
+
+/**
+ * Copies data from source to destination, does not create new data
+*/
+void overwriteData(uint8_t* dest, uint8_t* source, uint32_t numberItems){
+	std::memcpy(dest,source,numberItems*sizeof(uint8_t));
+	for(uint32_t i = 0; i<numberItems;i++){
+		dest[i] = source[i];
+	}
+} 
+
+Packet* Cache::getStalledPacket(Location loc){
+	std::vector<Packet*>::iterator found = std::find_if(std::begin(stalledReqQueue),std::end(stalledReqQueue),
+			[loc, this](Packet*originalReq){
+		Location originalLoc = getLocation(originalReq->addr);
+		return loc.set == originalLoc.set && loc.tag == originalLoc.tag;
+	});
+
+	if (found != std::end(stalledReqQueue)){
+		stalledReqQueue.erase(found);
+		return *found;
+	}
+	return nullptr;
+}
 
 /**
  * This function should be called when this cache is to receive a request for data. This method
  * just queues up requests to be handled in the tick() method
 */
 bool Cache::recvReq(Packet * packet){
-	packet->ready_time += accessDelay;
+	packet->ready_time = currCycle+accessDelay;
 		
-	// Debug print
-	DPRINTF(DEBUG_CACHE,"%8s recved req ",label.c_str());
-	if (DEBUG_CACHE)packet->print();
+	DPRINTPACKET(label.c_str(),"Received Request", packet);
 
-	if (reqQueue.size() < reqQueueCapacity){
-		reqQueue.push(packet);
+	if (pendingPackets.size() < reqQueueCapacity){
+		pendingPackets.push_back(packet);
 		return true;
 	}
 	DPRINTF(DEBUG_CACHE,
@@ -114,210 +148,191 @@ bool Cache::recvReq(Packet * packet){
 	return false;
 }
 
+
+void Cache::applyPacketToCacheBlock(Packet* packet, Block* block){
+	Location loc = getLocation(packet->addr);
+	if (packet->isWrite){
+		// Write the data
+		overwriteData(
+				block->getData()+loc.offset,
+				packet->data,
+				packet->size);
+		delete packet->data;
+		packet->data = nullptr;
+		block->setDirty(true);
+		if(DEBUG_CACHE){
+			DPRINTF(DEBUG_CACHE, "Block contents after write: ");
+			auto data = block->getData();
+			int count = getBlockSize()>16?16:getBlockSize();
+			if (getBlockSize()>count) printf("... ");
+			for(auto i = 0; i<count; i++){
+				printf("%02X ",data[count-i-1]);
+			}
+			printf("\n");
+		}
+	}else{
+		// Read the data
+		overwriteData(
+				packet->data,
+				block->getData()+loc.offset,
+				packet->size);						
+	}
+	packet->isReq = false;
+}
+
+bool Cache::writeBack(Block* block, uint32_t set){
+	if (block->getValid() && block->getDirty()){
+		Location loc;
+		loc.set = set;
+		loc.tag = block->getTag();
+		loc.offset = 0;
+		Packet* writeBack = new Packet(
+			true,
+			true,
+			PacketTypeWriteBack,
+			getAddress(loc),
+			getBlockSize(),
+			duplicateData(block->getData(),getBlockSize()),
+			currCycle
+			);
+		DPRINTPACKET(label.c_str(),"Sending writeback", writeBack);
+		if (!next->recvReq(writeBack)){
+			assert(false && "Next cache stage cannot accomodate req");
+		}
+		return true;
+	}
+	return false;
+}
+
+
 /*
  * This function should be called when this cache is to receive a response to a request. It
- * services response immediately (though I'm not 100% confident on this),
- * does not queue for tick(). In addition to servicing read data,
+ * services response immediately, does not queue for tick(). In addition to servicing read data,
  * this will send messages to mem pipe stage to let it know that operations have completed.
 */
 void Cache::recvResp(Packet* packet){
-	
-	// Debug print
-	DPRINTF(DEBUG_CACHE,"%8s recved rsp ",label.c_str());
-	if (DEBUG_CACHE)packet->print();
+	DPRINTPACKET(label.c_str(),"Received Response", packet);
 
-	// First we need to see if we need to write data to this cache (i.e., was the original request
-	// a read?)
+	// Write packets don't return any data, if it's not a read response packet, then it will have data
+	// that should be applied to the cache
 	if (!packet->isWrite){
+		// Apply packet
 		Location loc = getLocation(packet->addr);
-		int way = getWay(packet->addr);
-
 		Block* block;
-		if (way != -1){
-			// Block is stored in cache (which would be weird... not sure why this would happen)
-			block = blocks[loc.set][way];
-			replPolicy->update(packet->addr,way,packet->isWrite);
+
+		// Is it in cache? If not, we need to evict a cache line
+		int way = getWay(packet->addr);
+		
+		// Is the block already in the cache?
+		if (way == -1){
+			// Allocate a new way
+			Block* victimBlock = replPolicy->getVictim(packet->addr,packet->isWrite);
+			// Do we need to do writeback?
+			writeBack(victimBlock, loc.set);
+
+			// Clear
+			// No need to empty out blocks data because it will all be overwritten b/c block size
+			// is the same throughout the cache levels
+			victimBlock->clear(loc.tag);
+
+			block = victimBlock;
 		}else{
-			// Block not in cache yet
-			block = replPolicy->getVictim(packet->addr,packet->isWrite);
-			if (block->getValid() && block->getDirty()){
-				// Writeback
-				
-				uint32_t evictedAddress = getAddress({block->getTag(),loc.set,0});
-
-				// We need to make a copy of the data for transit, it will get destroyed on receipt
-				uint8_t* evictedData = block->getData();
-				uint8_t* evictedDataCopy = new uint8_t[blkSize];
-				for (uint32_t i = 0; i<getBlockSize();i++){
-					evictedDataCopy[i] = evictedData[i];
-				}
-
-				Packet* writeBack = new Packet(false, true, PacketTypeWriteBack, evictedAddress,
-													getBlockSize(),evictedDataCopy,0);
-				
-				
-				// Debug print
-				DPRINTF(DEBUG_CACHE,"%8s sending wb ",label.c_str());
-				if (DEBUG_CACHE)writeBack->print();
-
-				// TODO - buffer this message in case of it being full
-				next->recvReq(writeBack);
-			}
-			// Clear block
-			block->clear(loc.tag);
+ 			block = blocks[loc.set][way];
 		}
+		
+		// Apply the new data received from higher cache levels
+		overwriteData(block->getData(), packet->data, getBlockSize());
+		DPRINTPACKET(label.c_str(),"Writing to packet", packet);
 
-		// Copy Data
-		uint8_t* data = block->getData();
-		for(uint32_t i = 0; i<getBlockSize();i++){
-			data[i] = packet->data[i];
-		}
-
-
-		block->setValid(true);
-		// There's no way a packet received here could make the cache dirty
-		block->setDirty(false);
-
-		DPRINTF(DEBUG_CACHE,"%s Writing response 0x%x => set %d tag %d offset %d\n",label.c_str(), packet->addr,loc.set,loc.tag, loc.offset);
-
-		// Did this apply to a previous packet that is being held? Because it is not out of order, we don't need to service multiple
-		// waiting packets in this section
-		std::vector<Packet*>::iterator found = std::find_if(std::begin(holdingReqQueue),std::end(holdingReqQueue),
-				[loc, this](Packet*originalReq){
-			Location originalLoc = getLocation(originalReq->addr);
-			return loc.set == originalLoc.set && loc.tag == originalLoc.tag;
-		});
-
-		if (found != std::end(holdingReqQueue)){
+		// Now, was there a pending packet that needs to be serviced?
+		Packet* stalledPacket = getStalledPacket(loc);
+		if (stalledPacket){
+			DPRINTPACKET(label.c_str(),"Applying stalled packet", stalledPacket);
+			applyPacketToCacheBlock(stalledPacket,block);
 			delete packet;
-			packet = *found;
-			holdingReqQueue.erase(found);
-			auto originalOffset =getLocation(packet->addr).offset;
-			// Was the old one a write? we need to apply it
-			if (packet->isWrite){
-				DPRINTF(DEBUG_CACHE,"%8s applying staged write ",label.c_str());
-				if (DEBUG_CACHE)packet->print();
-
-				block->setDirty(true);
-				// write the data to cache
-				for (uint32_t i = 0; i< packet->size; i++){
-					data[originalOffset+i] = packet->data[i];
-				}			
-				
-				// Communicate that the write is complete.
-				packet->isReq = false;
-				delete packet->data;
-				packet->data = nullptr;
-			}else{
-				// Not write - we need to grab data for the read
-				for (uint32_t i=0; i<packet->size; i++){
-					packet->data[i] = data[i+originalOffset];
-				}
-
-			}
-		}	
+			packet = stalledPacket;
+			packet->isReq = false;
+		}
 	}
-
+	DPRINTPACKET(label.c_str(),"Sending Response back", packet);
 	getPrev(packet)->recvResp(packet);
-	return;
 }
 
 /**
- * This will create a copy of a packet but with the correct block size
+ * This will create a copy of a packet but with the correct block size and starting address,
+ * suitable for repeating a message onwards
 */
 Packet* Cache::repeatPacket(Packet* request){
 	uint32_t blockAddress = (request->addr/getBlockSize())*getBlockSize();
 	uint8_t* data = new uint8_t[getBlockSize()];
+
 	auto duplicatedPacket = new Packet(request->isReq, request->isWrite, request->type, blockAddress,
 			getBlockSize(), data, request->ready_time);
+
 	return duplicatedPacket;
 }
 
 /*Processes packets*/
 void Cache::Tick(){
-	while (!reqQueue.empty()) {
-		//check if any request packet is ready to be serviced (we assume packets are in order
-		// so if one is found that is not ready, none of the remainder are and we exit)
-		if (reqQueue.front()->ready_time <= currCycle) {
-			Packet* packet = reqQueue.front();
+	// Push the ready packets to the end of the vector and returns the iterator at the dividing
+	auto readyStart = std::remove_if(pendingPackets.begin(),pendingPackets.end(),[this](Packet* packet){
+		return packet->ready_time<=currCycle;});
+	auto readyEnd = pendingPackets.end();
 
-			// Debug print
-			DPRINTF(DEBUG_CACHE,"%8s processing ",label.c_str());
-			if (DEBUG_CACHE)packet->print();
-
-			reqQueue.pop();
-			int tag = getWay(packet->addr);
-			bool hit = tag != -1;
-
-			if (hit){
-				// Get the address parameters
-				Location loc = getLocation(packet->addr);
-				DPRINTF(DEBUG_CACHE,"%s Cache hit 0x%x => set %d tag %d offset %d\n",label.c_str(), packet->addr,loc.set,loc.tag, loc.offset);
-				// Get the data
-				Block* block = blocks[loc.set][tag];
-				uint8_t* blockData = block->getData();
-				if (packet->isWrite){
-					// Write
-					for (uint32_t i = 0; i<packet->size;i++){
-						blockData[loc.offset+i] = packet->data[i];
-					}
-					if (packet->type == PacketTypeWriteBack){
-						// Just kill the writeback, no need to bounce back its status
-						// TODO: Writethrough and other policies
-						delete packet;
-					}else{
-						// Communicate that the write is complete.
-						packet->isReq = false;
-						delete packet->data;
-						packet->data = nullptr;
-						getPrev(packet)->recvResp(packet);
-					}
-				}else{
-					// Otherwise get the blockdata and return
-					packet->isReq = false;
-					// Copy data
-					for (uint32_t i = 0; i<packet->size; i++){
-						packet->data[i] = blockData[i+loc.offset];
-					}
-					getPrev(packet)->recvResp(packet);
-				}				
-			}else{
-				Location loc = getLocation(packet->addr);
-				DPRINTF(DEBUG_CACHE,"%s Cache miss 0x%x => set %d tag %d\n",label.c_str(), packet->addr,loc.set,loc.tag);
-				// Miss, send on to next cache
-
-				// Do we need to translate a read to be the entire block?
-				if (packet->isWrite){
-					// If it is a write, we need to grab the right block
-					Packet* packetToSend = repeatPacket(packet);
-					holdingReqQueue.push_back(packet);
-					packet = packetToSend;
-					packet->isWrite = false;
-				}
-				else if (packet->size != getBlockSize()){
-					Packet* packetToSend = repeatPacket(packet);
-					holdingReqQueue.push_back(packet);
-					packet = packetToSend;
-				}
-				
-				//TODO: Buffer this in case next stage is full - not absolutely necessary as the stage can hold 100 messages
-				// and I'm not sure we are going over 100 cycles for a mem hit (though multiple things can send mem reqs...)
-				next->recvReq(packet);
+	// Process each ready packet
+	std::for_each(readyStart, readyEnd,[this](Packet* packet){
+		DPRINTPACKET(label.c_str(),"Processing packet", packet);
+		auto way = getWay(packet->addr);
+		// If the block is not yet in cache, we need to get it and have the packet wait as pending
+		if (way == -1){
+			// Cache miss
+			stalledReqQueue.push_back(packet);
+			// Translate and forward
+			Packet* forwardPacket = repeatPacket(packet);
+			// We need to make the translated packet conform to expectations
+			if (forwardPacket->isWrite){
+				// We just want to retrieve the data, we don't forward the write
+				forwardPacket->isWrite = false;
+				// Change type essentially we do not want it going back to L1_I cache
+				forwardPacket->type = PacketTypeLoad;
+			};
+			DPRINTPACKET(label.c_str(),"Forwarding packet", forwardPacket);
+			if (!next->recvReq(forwardPacket)){
+				assert(false && "Next cache stage cannot accomodate req");
 			}
-		} else {
-			/*
-			 * assume that reqQueue is sorted by ready_time for now
-			 * (because the pipeline is in-order)
-			 */
-			break;
-		}
-	}
-	return;
+		}else{
+			// Cache hit
+			DPRINTPACKET(label.c_str(),"Cache hit, apply packet", packet);
+			Location loc = getLocation(packet->addr);
+			applyPacketToCacheBlock(packet, blocks[loc.set][way]);
+			getPrev(packet)->recvResp(packet);
+		};
+	});
+
+	// Remove the packets that were serviced
+	pendingPackets.erase(readyStart, readyEnd);
 }
 
-/*You should complete this function*/
+/**
+ * This gets applicable data to the range. If the data is not within
+ * the appropriate range, it ignores it
+*/
 void Cache::dumpRead(uint32_t addr, uint32_t size, uint8_t* data){
-
+	for (int i = 0; i<size;){
+		Location loc = getLocation(addr+i);
+		// If we are going to our next block, let's get the entire block,
+		// not just from the offset
+		if (i) loc.offset = 0;
+		
+		uint8_t way = getWay(addr);
+		uint8_t* cacheData = 0;
+		if (way != (uint8_t)-1){
+			cacheData = blocks[loc.set][way]->getData();
+		}
+		for (;i<size && getLocation(addr+i).set == loc.set; i++){
+			if (cacheData) *(data + i) = cacheData[i+loc.offset];
+		}
+	}
 }
 
 

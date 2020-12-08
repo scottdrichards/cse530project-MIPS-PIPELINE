@@ -31,8 +31,8 @@ public:
 
 	//this memory object has received a packet
 	virtual void recvResp(Packet* readRespPkt) = 0;
-	//request queue for incoming requests
-	std::queue<Packet*> reqQueue;
+	//request array for incoming requests
+	std::vector<Packet*> pendingPackets;
 	//max capacity of request queue
 	uint32_t reqQueueCapacity;
 
