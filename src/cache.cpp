@@ -277,13 +277,15 @@ Packet* Cache::repeatPacket(Packet* request){
 
 /*Processes packets*/
 void Cache::Tick(){
-	// Push the ready packets to the end of the vector and returns the iterator at the dividing
-	auto readyEnd = std::partition(pendingPackets.begin(),pendingPackets.end(),[this](Packet* packet){
-		return packet->ready_time<=currCycle;});
-	auto readyStart = pendingPackets.begin();
+	auto readyLambda = [this](Packet*packet){
+		return packet->ready_time<=currCycle;
+	};
+
+	// Push the ready packets to the beginning of the vector and returns the iterator at the dividing
+	auto readyEnd = std::partition(pendingPackets.begin(),pendingPackets.end(),readyLambda);
 
 	// Process each ready packet
-	std::for_each(readyStart, readyEnd,[this](Packet* packet){
+	std::for_each(pendingPackets.begin(), readyEnd,[this](Packet* packet){
 		DPRINTPACKET(label.c_str(),"Processing packet", packet);
 		auto way = getWay(packet->addr);
 		// If the block is not yet in cache, we need to get it and have the packet wait as pending
@@ -312,8 +314,10 @@ void Cache::Tick(){
 		};
 	});
 
-	// Remove the packets that were serviced
-	pendingPackets.erase(readyStart, readyEnd);
+	// Remove the packets that were serviced. We must recalculate the range (remove_if) because some packets may have
+	// been added to pending packets during the foreach above. Pendingpackets will have changed - requiring a second
+	// call to .begin and .end
+	pendingPackets.erase(std::remove_if(pendingPackets.begin(),pendingPackets.end(),readyLambda),pendingPackets.end());
 }
 
 /**
