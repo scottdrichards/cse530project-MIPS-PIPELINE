@@ -50,8 +50,8 @@ def main():
 	    if (r0[0:3] == "MEM"):
 	    	nocheck = 0
             if (r1 != s1 and nocheck == 0):
-		print "  " + red + "ERROR" + normal
-		error = 1
+		        print "  " + red + "ERROR" + normal + " Expected: " + r1 +", Actual: " + s1
+		        error = 1
 	    elif (r0[0:3] != "MEM"):
 	        print
 
