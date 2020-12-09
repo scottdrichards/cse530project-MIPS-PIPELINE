@@ -7,7 +7,7 @@
 #include "pipe.h"
 #include "mips.h"
 #include "abstract_memory.h"
-#include "static_nt_branch_predictor.h"
+#include "dynamic_branch_predictor.h"
 #include <cstdio>
 #include <iostream>
 #include <cstring>
@@ -41,7 +41,8 @@ PipeState::PipeState() :
 	//initialize PC
 	PC = 0x00400000;
 	//initialize the branch predictor
-	BP = new StaticNTBranchPredictor();
+	//BP = new StaticNTBranchPredictor();
+	BP = new DynamicBranchPredictor();
 }
 
 PipeState::~PipeState() {
