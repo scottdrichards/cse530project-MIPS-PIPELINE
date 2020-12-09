@@ -45,23 +45,15 @@ public:
 	virtual void update(uint32_t addr, int way, bool isWrite) override;
 };
 
-
 /*
- * Least Recently Used (LRU) replacement policy
- */
-class LRURepl: public AbstarctReplacementPolicy {
-
-public:
-	LRURepl(Cache* cache);
-	~LRURepl();
-	virtual Block* getVictim(uint32_t addr, bool isWrite) override;
-	virtual void update(uint32_t addr, int way, bool isWrite) override;
-private:
-	/*
-	 * There is a blockUseList for each set, each of them are ordered
-	 * by time of last use, begin/front is oldest
-	*/
-	std::vector<Block*>* blockUseLists;
+ * Least Recently Used (LRU) replacement policy 
+*/
+class LRURepl: public AbstarctReplacementPolicy{
+	public:
+		LRURepl(Cache* cache);
+		~LRURepl(){}
+		virtual Block* getVictim(uint32_t addr, bool isWrite) override;
+		virtual void update(uint32_t addr, int way, bool isWrite) override;
 };
 
 #endif
