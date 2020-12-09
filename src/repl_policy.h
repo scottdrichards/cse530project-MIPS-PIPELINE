@@ -8,9 +8,17 @@
 #define __REPL_POLICY_H__
 
 #include <vector>
-#include"block.h"
+#include <cstdint>
 
 class Cache;
+class Block;
+
+
+enum ReplacementPolicy{
+	RandomReplPolicy,
+	LRUReplPolicy,
+	PLRUReplPolicy
+};
 
 /*
  * AbstarctReplacementPolicy should be inherited by your
@@ -49,7 +57,10 @@ public:
  * Least Recently Used (LRU) replacement policy 
 */
 class LRURepl: public AbstarctReplacementPolicy{
-	private: leastUsed
+	private:
+		// Keeps track of the ordering of way indices
+		typedef std::vector<uint8_t> Ordering;
+		std::vector<Ordering> useTracker;
 	public:
 		LRURepl(Cache* cache);
 		~LRURepl(){}
@@ -62,8 +73,12 @@ class LRURepl: public AbstarctReplacementPolicy{
  * https://en.wikipedia.org/wiki/Pseudo-LRU
 */
 class PLRURepl: public AbstarctReplacementPolicy{
+	private:
+		// TreeArray is a list of bools
+		typedef std::vector<bool> TreeArray;
+		std::vector<TreeArray> useTracker;
 	public:
-		PLRURepl(Cache* cache):AbstarctReplacementPolicy(cache){};
+		PLRURepl(Cache* cache);
 		~PLRURepl(){}
 		virtual Block* getVictim(uint32_t addr, bool isWrite) override;
 		virtual void update(uint32_t addr, int way, bool isWrite) override;

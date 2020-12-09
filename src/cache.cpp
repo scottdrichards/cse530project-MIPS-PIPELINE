@@ -36,6 +36,9 @@ Cache::Cache(uint32_t size, uint32_t associativity, uint32_t blkSize,
 		case LRUReplPolicy:
 			replPolicy = new LRURepl(this);
 			break;
+		case PLRUReplPolicy:
+			replPolicy = new PLRURepl(this);
+			break;
 		default:
 			assert(false && "Unknown Replacement Policy");
 	}
