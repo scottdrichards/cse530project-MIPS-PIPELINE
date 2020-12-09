@@ -58,17 +58,15 @@ LRURepl::LRURepl(Cache* cache):
 }
 
 Block* LRURepl::getVictim(uint32_t addr, bool isWrite){
-	addr = addr / cache->getBlockSize();
+	Block* available = AbstarctReplacementPolicy::getVictim(addr, isWrite);
+	if (available) return available;
 	
-	uint64_t setIndex = (cache->getNumSets() - 1) & addr;
+}
 
-	//first check if there is a free block to allocate
-	for (int i = 0; i < (int) cache->getAssociativity(); i++) {
-		if (cache->blocks[setIndex][i]->getValid() == false) {
-			return cache->blocks[setIndex][i];
-		}
-	}
-	//randomly choose a block
-	int victim_index = rand() % cache->getAssociativity();
-	return cache->blocks[setIndex][victim_index];
+Block* getVictim(uint32_t addr, bool isWrite){
+
+}
+
+void update(uint32_t addr, int way, bool isWrite){
+
 }

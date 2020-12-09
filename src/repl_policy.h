@@ -49,9 +49,22 @@ public:
  * Least Recently Used (LRU) replacement policy 
 */
 class LRURepl: public AbstarctReplacementPolicy{
+	private: leastUsed
 	public:
 		LRURepl(Cache* cache);
 		~LRURepl(){}
+		virtual Block* getVictim(uint32_t addr, bool isWrite) override;
+		virtual void update(uint32_t addr, int way, bool isWrite) override;
+};
+
+/*
+ * Psuedo-Least Recently Used (PLRU) replacement policy 
+ * https://en.wikipedia.org/wiki/Pseudo-LRU
+*/
+class PLRURepl: public AbstarctReplacementPolicy{
+	public:
+		PLRURepl(Cache* cache):AbstarctReplacementPolicy(cache){};
+		~PLRURepl(){}
 		virtual Block* getVictim(uint32_t addr, bool isWrite) override;
 		virtual void update(uint32_t addr, int way, bool isWrite) override;
 };
