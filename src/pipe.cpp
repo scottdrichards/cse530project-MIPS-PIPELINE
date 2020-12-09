@@ -41,7 +41,7 @@ PipeState::PipeState() :
 	//initialize PC
 	PC = 0x00400000;
 	//initialize the branch predictor
-	//BP = new StaticNTBranchPredictor();
+	//BP = new DynamicBranchPredictor();
 	BP = new DynamicBranchPredictor();
 }
 
@@ -751,9 +751,9 @@ void PipeState::pipeStageFetch() {
 	//get the next instruction to fetch from branch predictor
 	uint32_t target = BP->getTarget(PC);
 	if (target == -1) {
-		PC = PC + 4;
+		PC = PC + 4; //miss/stall? unsure
 	} else {
-		PC = target;
+		PC = target; //correct prediction
 	}
 }
 

@@ -9,11 +9,11 @@
 
 #include "abstract_branch_predictor.h"
 /*
- * Static Not-Taken branch predictor
+ * Dynamic branch predictor
  */
 class DynamicBranchPredictor: public AbstractBranchPredictor {
 public:
-	DynamicBranchPredictor(uint32_t PC);
+	DynamicBranchPredictor();
 	virtual ~DynamicBranchPredictor();
 	virtual uint32_t getTarget(uint32_t PC) override;
 	virtual void update(uint32_t PC, bool taken, uint32_t target) override;
