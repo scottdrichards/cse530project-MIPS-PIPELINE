@@ -71,6 +71,24 @@ typedef struct Pipe_Op {
 	bool readyForNextStage;
 } Pipe_Op;
 
+
+/*
+scr
+Structure for the XM and MW bypassing
+*/
+
+typedef struct Pipe_bypassing {
+	//register destination information
+	int reg_dst; /* 0 -- 31 if this inst has a destination register, -1
+	 otherwise */
+	uint32_t reg_dst_value; /* value to write into dest reg. */
+
+
+
+} Pipe_Bypassing;
+
+
+
 /* The pipe state represents the current state of the pipeline. It holds a
  * pointer to the op that is currently at the input of each stage. As stages
  * execute, they remove the op from their input (set the pointer to NULL) and
@@ -86,6 +104,13 @@ public:
 	~PipeState();
 	//pipe op currently at the input of the given stage (NULL for none)
 	Pipe_Op *fetch_op, *decode_op, *execute_op, *mem_op, *wb_op;
+
+
+	/*
+	scr
+	add the variable that save the stage result for bypassing
+	*/
+	Pipe_Bypassing *xm_bypassing, *mw_bypassing;
 
 	//pointer to the branch predictor
 	AbstractBranchPredictor* BP;
