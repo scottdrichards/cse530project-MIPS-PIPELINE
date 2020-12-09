@@ -49,10 +49,6 @@ private:
 	// request in this queue for when the response happens.
 	std::vector<Packet*>stalledReqQueue;
 	Packet* repeatPacket(Packet* request);
-	// Used to calculate tag set and offset with an address
-	Location getLocation(uint32_t addr);
-	// Gets an address from tag, set, and offset
-	uint32_t getAddress(Location location);
 	
 	/**
 	 * Returns a matching packet that is pending (e.g., a write or a read that was 
@@ -68,6 +64,11 @@ private:
 	*/
 	bool writeBack(Block* block, uint32_t set);
 public:
+	// Used to calculate tag set and offset with an address
+	Location getLocation(uint32_t addr);
+	// Gets an address from tag, set, and offset
+	uint32_t getAddress(Location location);
+	// "l2Cache" "L1ICache" etc.
 	std::string label;
 	//Pointer to an array of block pointers
 	Block ***blocks;
