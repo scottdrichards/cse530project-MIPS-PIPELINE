@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 #include <algorithm>
+#include <numeric>
 #include "repl_policy.h"
 #include "cache.h"
 
@@ -19,8 +20,7 @@ AbstarctReplacementPolicy::AbstarctReplacementPolicy(Cache* cache) :
  * respective replacement policies.
 */
 Block* AbstarctReplacementPolicy::getVictim(uint32_t addr, bool isWrite){
-	uint32_t blockAddr = addr / cache->getBlockSize();
-	uint64_t setIndex = (cache->getNumSets() - 1) & blockAddr;
+	auto setIndex = cache->getLocation(addr).set;
 	
 	for (int i = 0; i < (int) cache->getAssociativity(); i++) {
 		if (cache->blocks[setIndex][i]->getValid() == false) {
@@ -39,9 +39,8 @@ RandomRepl::RandomRepl(Cache* cache) :
 Block* RandomRepl::getVictim(uint32_t addr, bool isWrite) {
 	Block* available = AbstarctReplacementPolicy::getVictim(addr, isWrite);
 	if (available) return available;
-	
-	addr = addr / cache->getBlockSize();
-	uint64_t setIndex = (cache->getNumSets() - 1) & addr;
+
+	auto setIndex = cache->getLocation(addr).set;
 
 	//randomly choose a block
 	int victim_index = rand() % cache->getAssociativity();
@@ -53,53 +52,84 @@ void RandomRepl::update(uint32_t addr, int way, bool isWrite) {
 	return;
 }
 
-
-
-LRURepl::LRURepl(Cache* cache) :
-		AbstarctReplacementPolicy(cache) {
-	blockUseLists = (std::vector<Block*>*)malloc(sizeof(std::vector<Block*>*)*cache->getNumSets());
-}
-
-LRURepl::~LRURepl(){
-	free(blockUseLists);
-}
-
-
-Block* LRURepl::getVictim(uint32_t addr, bool isWrite) {
-	// First see if there is an available block
-	auto available = AbstarctReplacementPolicy::getVictim(addr, isWrite);
-	if (available) return available;	
+LRURepl::LRURepl(Cache* cache):
+	AbstarctReplacementPolicy(cache){
 	
-	uint32_t blockAddr = addr / cache->getBlockSize();
-	uint64_t setIndex = (cache->getNumSets() - 1) & blockAddr;
-	auto blockUseList = blockUseLists[setIndex];
+	// Create ordering the size of associativity
+	Ordering defaultO(cache->getAssociativity());
+	// Fill 0, 1, 2... 
+	std::iota(defaultO.begin(),defaultO.end(),0);
 
-	// Dequeue the front (oldest) used block
-	auto staleBlock = blockUseList.front();
-	blockUseList.erase(blockUseList.begin());
-	return staleBlock;
+	useTracker = std::vector<Ordering>(cache->getNumSets(), defaultO);	
 }
 
-void LRURepl::update(uint32_t addr, int way, bool isWrite) {
-	uint32_t blockAddr = addr / cache->getBlockSize();
-	uint64_t setIndex = (cache->getNumSets() - 1) & blockAddr;
-	auto blockUseList = blockUseLists[setIndex];
+Block* LRURepl::getVictim(uint32_t addr, bool isWrite){
+	Block* available = AbstarctReplacementPolicy::getVictim(addr, isWrite);
+	if (available) return available;
 
-	uint32_t tag = addr /(cache->getBlockSize()*cache->getNumSets());
+	auto setIndex = cache->getLocation(addr).set;
+	auto ordering = useTracker[setIndex];
+	auto way = *ordering.begin();
+	// Send the oldest way to the back
+	std::rotate(ordering.begin(),ordering.begin()+1, ordering.end());
+	return cache->blocks[setIndex][way];
+}
 
-	std::vector<Block*>::iterator foundIterator = std::find_if(blockUseList.begin(),blockUseList.end(),[tag](Block* block){
-		return block->getTag() == tag;
-	});
-
-	Block* foundBlock;
-	if (foundIterator == blockUseList.end()){
-		// If not found, add it to the end
-		blockUseList.push_back(cache->blocks[setIndex][way]);
-		foundBlock = blockUseList.back();
+void LRURepl::update(uint32_t addr, int way, bool isWrite){
+	auto set = addr/cache->getBlockSize();
+	auto ordering = useTracker[cache->getLocation(addr).set];
+	auto wayIterator = std::find(ordering.begin(),ordering.end(),way);
+	if (wayIterator == ordering.end()){
+		assert(false && "Error, way greater than expected");
 	}else{
-		foundBlock = *foundIterator;
-		// Move the foundIterator (i.e., vector spot) to the end of the vector
-		std::rotate(foundIterator, foundIterator+1, blockUseList.end());
+		// Move the way to the back
+		std::rotate(wayIterator,wayIterator+1, ordering.end());
 	}
-	return;
+}
+
+PLRURepl::PLRURepl(Cache* cache):AbstarctReplacementPolicy(cache){
+	auto intLog2 = [](uint32_t number){
+		uint32_t count = 0;
+		while (number >>= 1) count++;
+		return count;
+	};
+
+	// There is no end node for 
+	auto treesize = intLog2(cache->getAssociativity())-1;
+	auto defaultTree = TreeArray(treesize,true);
+	useTracker = std::vector<TreeArray>(cache->getNumSets());
+}
+
+Block* PLRURepl::getVictim(uint32_t addr, bool isWrite){
+	Block* available = AbstarctReplacementPolicy::getVictim(addr, isWrite);
+	if (available) return available;
+
+	auto setIndex = cache->getLocation(addr).set;
+
+	auto tree = useTracker[setIndex];
+
+	auto i = 0;
+	while(i<tree.size()){
+		i = tree[i]?
+				i*2+1 // True (right branches)
+				:i*2;  // false (left branches)
+	};
+	// Once we go over the size of the array, we are now in the "leaves" that aren't really
+	// represented in the array. 
+	auto way = i-tree.size();
+
+	// Update boolean flags
+	update(addr,way,isWrite);
+	return cache->blocks[setIndex][i];
+}
+
+void PLRURepl::update(uint32_t addr, int way, bool isWrite){
+	auto setIndex = cache->getLocation(addr).set;
+	auto tree = useTracker[setIndex];
+	way += tree.size();
+	way>>1;
+	while (way){
+		tree[way] = !tree[way];
+		way>>1;
+	}
 }

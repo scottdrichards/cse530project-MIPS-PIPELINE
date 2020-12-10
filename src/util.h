@@ -8,6 +8,8 @@
 #define __UTIL_H__
 #include <cstdint>
 
+enum ReplacementPolicy;
+
 uint64_t extern currCycle;
 
 extern bool DEBUG_MEMORY;
@@ -26,11 +28,6 @@ extern bool TRACE_MEMORY;
 #define TRACE(flag, cond, fmt, ...) \
 	if((flag) && (cond)) \
         fprintf(stdout, fmt, ##__VA_ARGS__);
-
-enum ReplacementPolicy{
-	RandomReplPolicy,
-	LRUReplPolicy
-};
 
 enum PacketSrcType {
 	PacketTypeFetch = 0,
