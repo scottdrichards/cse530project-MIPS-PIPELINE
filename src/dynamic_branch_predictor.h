@@ -16,6 +16,8 @@ public:
 	DynamicBranchPredictor();
 	virtual ~DynamicBranchPredictor();
 	virtual uint32_t getTarget(uint32_t PC) override;
+	virtual uint32_t sendout() override;
+	virtual void misprediction() override;
 	virtual void update(uint32_t PC, bool taken, uint32_t target) override;
 };
 

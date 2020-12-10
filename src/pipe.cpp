@@ -709,7 +709,23 @@ void PipeState::pipeStageDecode() {
 		}
 		break;
 	}
+	
+	uint32_t prediction = 0;
+	//branch?
+	if(op->is_branch == 1){
+		//Get prediction if it's there
+		prediction = BP->sendout();
+		if (prediction != 0 && prediction == op->branch_dest){
+			//printf("Successfully predicted! Continue execution\n");		
+		}else if(prediction != 0 && prediction != op->branch_dest){
+			//misprediction 
+			//deletes entry from target buffer.
+			BP->misprediction();
+			//kill fetched instruction
+			//restart fetch at other target
+		}
 
+	}
 	// place op in downstream slot
 	execute_op = op;
 }
@@ -751,9 +767,9 @@ void PipeState::pipeStageFetch() {
 	//get the next instruction to fetch from branch predictor
 	uint32_t target = BP->getTarget(PC);
 	if (target == -1) {
-		PC = PC + 4; //miss/stall? unsure
+		PC = PC + 4; 
 	} else {
-		PC = target; //correct prediction
+		PC = target; 
 	}
 }
 
