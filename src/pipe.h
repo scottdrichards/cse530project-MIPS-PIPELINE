@@ -82,9 +82,6 @@ typedef struct Pipe_bypassing {
 	int reg_dst; /* 0 -- 31 if this inst has a destination register, -1
 	 otherwise */
 	uint32_t reg_dst_value; /* value to write into dest reg. */
-
-
-
 } Pipe_Bypassing;
 
 
@@ -110,7 +107,7 @@ public:
 	scr
 	add the variable that save the stage result for bypassing
 	*/
-	Pipe_Bypassing *xm_bypassing, *mw_bypassing;
+	Pipe_Bypassing wx_bypassing, mx_bypass;
 
 	//pointer to the branch predictor
 	AbstractBranchPredictor* BP;

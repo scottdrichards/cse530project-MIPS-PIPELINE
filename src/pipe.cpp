@@ -33,7 +33,7 @@ void printOp(Pipe_Op *op) {
 */
 PipeState::PipeState() :
 		fetch_op(nullptr), decode_op(nullptr), execute_op(nullptr), mem_op(
-				nullptr), wb_op(nullptr), data_mem(nullptr), inst_mem(nullptr), xm_bypassing(nullptr), mw_bypassing(nullptr), HI(
+				nullptr), wb_op(nullptr), data_mem(nullptr), inst_mem(nullptr), HI(
 				0), LO(0), branch_recover(0), branch_dest(0), branch_flush(0), RUN_BIT(
 				true), stat_cycles(0), stat_inst_retire(0), stat_inst_fetch(0), stat_squash(
 				0) {
@@ -45,8 +45,6 @@ PipeState::PipeState() :
 	PC = 0x00400000;
 	//initialize the branch predictor
 	BP = new StaticNTBranchPredictor();
-	xm_bypassing = (Pipe_Bypassing *) malloc(sizeof(Pipe_Bypassing));
-	mw_bypassing = (Pipe_Bypassing *) malloc(sizeof(Pipe_Bypassing));
 }
 
 PipeState::~PipeState() {
@@ -60,11 +58,6 @@ PipeState::~PipeState() {
 		free(mem_op);
 	if (wb_op)
 		free(wb_op);
-	
-	if(xm_bypassing)
-		free(xm_bypassing);
-	if(mw_bypassing)
-		free(mw_bypassing);
 	delete BP;
 }
 
@@ -81,6 +74,10 @@ void PipeState::pipeCycle() {
 		printOp(wb_op);
 		printf("\n");
 	}
+
+	// Reset bypassing values
+	wx_bypassing = {-1,0};
+	mx_bypass = {-1,0};
 
 	pipeStageWb();
 	if(RUN_BIT == false)
@@ -159,6 +156,9 @@ void PipeState::pipeStageWb() {
 	//if this instruction writes a register, do so now
 	if (op->reg_dst != -1 && op->reg_dst != 0) {
 		REGS[op->reg_dst] = op->reg_dst_value;
+		
+		wx_bypassing.reg_dst = op->reg_dst;
+		wx_bypassing.reg_dst_value = op->reg_dst_value;
 
 		DPRINTF(DEBUG_PIPE, "R%d = %08x\n", op->reg_dst, op->reg_dst_value);
 	}
@@ -188,16 +188,6 @@ void PipeState::pipeStageMem() {
 //					mem_op->pc);
 			mem_op = NULL;
 			wb_op = op;
-			
-			/*
-			scr
-			save the destination address and value for MW_bypassing
-			*/
-			mw_bypassing->reg_dst = wb_op->reg_dst;
-			mw_bypassing->reg_dst_value = wb_op->reg_dst_value;
-
-
-
 			return;
 		}
 		if (op->memTried == true) {
@@ -219,8 +209,8 @@ void PipeState::pipeStageMem() {
 				scr
 				save the destination address and value for MW_bypassing
 				*/
-				mw_bypassing->reg_dst = wb_op->reg_dst;
-				mw_bypassing->reg_dst_value = wb_op->reg_dst_value;
+				mx_bypass.reg_dst = wb_op->reg_dst;
+				mx_bypass.reg_dst_value = wb_op->reg_dst_value;
 
 
 				return;
@@ -247,8 +237,8 @@ void PipeState::pipeStageMem() {
 		scr
 		WM bypassing for store
 		*/
-		if(op->reg_src2 == mw_bypassing->reg_dst)
-			*data = mw_bypassing->reg_dst_value & 0xFF;
+		if(op->reg_src2 == mx_bypass.reg_dst)
+			*data = mx_bypass.reg_dst_value & 0xFF;
 
 
 
@@ -264,8 +254,8 @@ void PipeState::pipeStageMem() {
 		scr
 		WM bypassing for store
 		*/
-		if(op->reg_src2 == mw_bypassing->reg_dst)
-			*data = mw_bypassing->reg_dst_value & 0xFFFF;
+		if(op->reg_src2 == mx_bypass.reg_dst)
+			*data = mx_bypass.reg_dst_value & 0xFFFF;
 
 		op->memPkt = new Packet(true, true, PacketTypeStore, (op->mem_addr), 2,
 				(uint8_t*) data, currCycle);
@@ -280,8 +270,8 @@ void PipeState::pipeStageMem() {
 		scr
 		WM bypassing for store
 		*/
-		if(op->reg_src2 == mw_bypassing->reg_dst)
-			*data = mw_bypassing->reg_dst_value;
+		if(op->reg_src2 == mx_bypass.reg_dst)
+			*data = mx_bypass.reg_dst_value;
 
 		op->memPkt = new Packet(true, true, PacketTypeStore, (op->mem_addr), 4,
 				(uint8_t*) data, currCycle);
@@ -349,29 +339,29 @@ void PipeState::pipeStageExecute() {
 	*/
 
 	if (op->reg_src1 != -1) {
-		if (xm_bypassing && xm_bypassing->reg_dst == op->reg_src1) {
-			op->reg_src1_value = xm_bypassing->reg_dst_value;
+		if (wx_bypassing.reg_dst == op->reg_src1) {
+			op->reg_src1_value = wx_bypassing.reg_dst_value;
 			stall = 0;
-		} else if (mw_bypassing && mw_bypassing->reg_dst == op->reg_src1) {
-			op->reg_src1_value = mw_bypassing->reg_dst_value;
+		} else if (mx_bypass.reg_dst != -1 && mx_bypass.reg_dst == op->reg_src1) {
+			op->reg_src1_value = mx_bypass.reg_dst_value;
 			stall = 0;
 		} 
 	}
 	if (op->reg_src2 != -1) {
-		if (xm_bypassing && xm_bypassing->reg_dst == op->reg_src2) {
-			op->reg_src2_value = xm_bypassing->reg_dst_value;
+		if (wx_bypassing.reg_dst == op->reg_src2) {
+			op->reg_src2_value = wx_bypassing.reg_dst_value;
 			stall = 0;
-		} else if (mw_bypassing && mw_bypassing->reg_dst == op->reg_src2) {
-			op->reg_src2_value = mw_bypassing->reg_dst_value;
+		} else if (mx_bypass.reg_dst != -1 && mx_bypass.reg_dst == op->reg_src2) {
+			op->reg_src2_value = mx_bypass.reg_dst_value;
 			stall = 0;
 		} 
 	}
 
 	printf("After bypassing:\n op->reg_src1:%d\n op->reg_src2:%d\n " ,op->reg_src1, op->reg_src2);
-	if(xm_bypassing)
-		printf("xm_bypassing->reg_dst:%d\n xm_bypassing->reg_dst_value:%d" ,xm_bypassing->reg_dst, xm_bypassing->reg_dst_value);
-	if(mw_bypassing)
-		printf("wm_bypassing->reg_dst:%d\n mw_bypassing->reg_dst_value:%d" ,mw_bypassing->reg_dst, mw_bypassing->reg_dst_value);
+	if(wx_bypassing.reg_dst != -1)
+		printf("xm_bypassing.reg_dst:%d\n xm_bypassing.reg_dst_value:%d" ,wx_bypassing.reg_dst, wx_bypassing.reg_dst_value);
+	if(mx_bypass.reg_dst != -1)
+		printf("wm_bypassing.reg_dst:%d\n mw_bypassing.reg_dst_value:%d" ,mx_bypass.reg_dst, mx_bypass.reg_dst_value);
 	//if requires a stall return without clearing stage input
 	if (stall)
 		return;
@@ -627,13 +617,6 @@ void PipeState::pipeStageExecute() {
 	//remove from upstream stage and place in downstream stage
 	execute_op = NULL;
 	mem_op = op;
-
-	/*
-	scr
-	save the destination address and value to the xm_bypassing
-	*/
-	xm_bypassing->reg_dst = op->reg_dst;
-	xm_bypassing->reg_dst_value = op->reg_dst_value;
 
 }
 
