@@ -8,9 +8,12 @@
 #define __UTIL_H__
 #include <cstdint>
 #include "repl_policy.h"
+<<<<<<< HEAD
 
 
 enum ReplacementPolicy;
+=======
+>>>>>>> 56f5d0e06c2706a8554249f588f5351f02067db5
 
 uint64_t extern currCycle;
 
