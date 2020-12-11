@@ -13,7 +13,10 @@
 #include <cstring>
 #include <cstdlib>
 #include <cassert>
+#include <stack>
 #include "util.h"
+
+//obstack::stack<uint32_t> first;
 
 /* debug */
 void printOp(Pipe_Op *op) {
@@ -353,6 +356,8 @@ void PipeState::pipeStageExecute() {
 			op->reg_dst_value = op->pc + 4;
 			op->branch_dest = op->reg_src1_value;
 			op->branch_taken = 1;
+			//Push Call Address when Function is executed
+
 			break;
 
 		case SUBOP_MULT: {
@@ -654,6 +659,7 @@ void PipeState::pipeStageDecode() {
 		op->branch_cond = 0;
 		op->branch_taken = 1;
 		op->branch_dest = (op->pc & 0xF0000000) | targ;
+
 		break;
 
 	case OP_BEQ:
@@ -716,7 +722,7 @@ void PipeState::pipeStageDecode() {
 		//Get prediction if it's there
 		prediction = BP->sendout();
 		if (prediction != 0 && prediction == op->branch_dest){
-			//printf("Successfully predicted! Continue execution\n");		
+			std::cout << "Successfully predicted! Continue execution\n";		
 		}else if(prediction != 0 && prediction != op->branch_dest){
 			//misprediction 
 			//deletes entry from target buffer.

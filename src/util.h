@@ -7,6 +7,8 @@
 #ifndef __UTIL_H__
 #define __UTIL_H__
 #include <cstdint>
+#include "repl_policy.h"
+
 
 enum ReplacementPolicy;
 

@@ -6,6 +6,7 @@
 
 #include "dynamic_branch_predictor.h"
 #include <cstdio>
+#include <iostream>
 //2^k entries, where k = 5 
 //columns: Entry PC(27 tag=5) | Predicted PC | Valid
 uint32_t BTB[32][3]={{0},{0},{0}};
@@ -69,18 +70,20 @@ void DynamicBranchPredictor::misprediction() {
  * 
  */
 void DynamicBranchPredictor::update(uint32_t PC, bool taken, uint32_t target) {
-	/*bool duplicate = false;
+	bool duplicate = false;
 	//scan BTB in case an entry matches
+	//Unique value?
 	for (int i=0; i<32; i++){
 			//PC and target are the same, don't re-enter this entry.			
 			if(BTB[i][0]==PC && BTB[i][1]==target){
-			printf("BTB entry already there.");
+			std::cout << "BTB entry already there.";
 			duplicate = true;
+			break;
 			}
-	}*/
+	}
 
-	//Is the instruction a taken branch?
-	if (taken ==1) {//&& duplicate == false){
+	//Is the instruction a taken branch? 
+	if (taken ==1 && duplicate == false) {
 		//Enter branch instr.add. and next PC into BTB
 		for (int i=0; i<32; i++){
 			//empty space found, so enter into the BTB
