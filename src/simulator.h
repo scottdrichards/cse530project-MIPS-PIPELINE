@@ -11,6 +11,7 @@
 #include "pipe.h"
 #include "util.h"
 #include "cache.h"
+#include "dynamic_branch_predictor.h"
 
 class Simulator {
 public:
@@ -21,6 +22,8 @@ public:
 	Cache * cache_l1_I;
 	Cache * cache_l1_D;
 	L2Cache * cache_l2;
+
+	AbstractBranchPredictor* BP;
 
 	/*
 	 * Execute a cycle

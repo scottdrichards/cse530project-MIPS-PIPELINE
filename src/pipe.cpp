@@ -40,9 +40,6 @@ PipeState::PipeState() :
 	}
 	//initialize PC
 	PC = 0x00400000;
-	//initialize the branch predictor
-	//BP = new DynamicBranchPredictor();
-	BP = new DynamicBranchPredictor();
 }
 
 PipeState::~PipeState() {
@@ -77,40 +74,32 @@ void PipeState::pipeCycle() {
 
 		PC = branch_dest;
 
-		if (branch_flush >= 1) {
-			if (fetch_op)
-				free(fetch_op);
-			fetch_op = nullptr;
+		switch (branch_flush){
+			case FLUSH_WRITEBACK:
+				if (wb_op) free(wb_op);
+				wb_op = nullptr;
+			// fall through...
+			case FLUSH_MEMORY:
+				if (mem_op) free(mem_op);
+				mem_op = nullptr;
+			// fall through...
+			case FLUSH_EXECUTE:
+				if (execute_op) free(execute_op);
+				execute_op = nullptr;
+			// fall through...
+			case FLUSH_DECODE:
+				if (decode_op) free(decode_op);
+				decode_op = nullptr;
+			// fall through...
+			case FLUSH_FETCH:
+				if (fetch_op) free(fetch_op);
+				fetch_op = nullptr;
+			break;
 		}
 
-		if (branch_flush >= 2) {
-			if (decode_op)
-				free(decode_op);
-			decode_op = nullptr;
-		}
-
-		if (branch_flush >= 3) {
-			if (execute_op)
-				free(execute_op);
-			execute_op = nullptr;
-		}
-
-		if (branch_flush >= 4) {
-			if (mem_op)
-				free(mem_op);
-
-			mem_op = nullptr;
-		}
-
-		if (branch_flush >= 5) {
-			if (wb_op)
-				free(wb_op);
-			wb_op = nullptr;
-		}
-
-		branch_recover = 0;
+		branch_recover = false;
 		branch_dest = 0;
-		branch_flush = 0;
+		branch_flush = NO_FLUSH;
 
 		stat_squash++;
 	}
@@ -130,14 +119,16 @@ bool isStore(Pipe_Op*op){
 	return false;
 }
 
-void PipeState::pipeRecover(int flush, uint32_t dest) {
+void PipeState::pipeRecover(FLUSH_FROM flush, uint32_t dest) {
 	/* if there is already a recovery scheduled, it must have come from a later
 	 * stage (which executes older instructions), hence that recovery overrides
 	 * our recovery. Simply return in this case. */
 	if (branch_recover)
 		return;
+
+	DPRINTF(DEBUG_PIPE,"Flushing pipe stage %d, new address 0x%x\n", flush, dest);
 	//schedule the recovery. This will be done once all pipeline stages simulate the current cycle.
-	branch_recover = 1;
+	branch_recover = true;
 	branch_flush = flush;
 	branch_dest = dest;
 }
@@ -566,11 +557,16 @@ void PipeState::pipeStageExecute() {
 		break;
 	}
 
-	//update the branch predictor metadata
-	BP->update(op->pc, op->branch_taken, op->branch_dest);
-	//handle branch recoveries at this point
-	if (op->branch_taken)
-		pipeRecover(3, op->branch_dest);
+	// Branch that hasn't been taken (branch_dest==0 means already taken)
+	if(op->is_branch == 1 && op->branch_dest){
+		auto targetAddress = op->branch_taken? op->branch_dest: op->pc+4;
+		auto nextOp = decode_op?decode_op:fetch_op;
+		// Do we have the correct branch in the pipe?
+		if (nextOp->pc != targetAddress){
+			pipeRecover(FLUSH_EXECUTE, targetAddress);
+		}
+		BP->update(op->pc,op->branch_taken,targetAddress);
+	}
 
 	//remove from upstream stage and place in downstream stage
 	execute_op = NULL;
@@ -710,21 +706,28 @@ void PipeState::pipeStageDecode() {
 		break;
 	}
 	
-	uint32_t prediction = 0;
-	//branch?
-	if(op->is_branch == 1){
-		//Get prediction if it's there
-		prediction = BP->sendout();
-		if (prediction != 0 && prediction == op->branch_dest){
-			//printf("Successfully predicted! Continue execution\n");		
-		}else if(prediction != 0 && prediction != op->branch_dest){
-			//misprediction 
-			//deletes entry from target buffer.
-			BP->misprediction();
-			//kill fetched instruction
-			//restart fetch at other target
+	//branch and do we have a destination ready?
+	if(op->is_branch == 1 && op->branch_dest){
+		// Is it a conditional branch?
+		if (op->branch_cond){
+			// Guess whether it is taken or not
+			auto predictedTaken = BP->predictTaken(op->pc);
+			// If we predict it should be taken let's take it (if not already taken
+			// based on BTB prediction
+			if (predictedTaken && fetch_op->pc != op->branch_dest)
+				pipeRecover(FLUSH_DECODE, op->branch_dest);
+		}else{
+			// We can process the branch now (unless already done)
+			if (fetch_op->pc != op->branch_dest){
+				// Mispredicted BTB result, rollback
+				pipeRecover(FLUSH_DECODE, op->branch_dest);
+			}else{
+				// Predicted well with BTB
+			}
+			BP->update(op->pc,true,op->branch_dest);
+			// branch_dest == 0 means already taken
+			op->branch_dest = 0;
 		}
-
 	}
 	// place op in downstream slot
 	execute_op = op;
@@ -861,10 +864,10 @@ void PipeState::print(){
 	printf("WB    : ");
 	printOp(wb_op);
 	printf("\n");
-	// std::cout<< "Registers:"<<std::endl;
-	// for (int i = 0; i< 32; i++){
-	// 	std::cout<<"["<<std::setw(2)<<i<<"]:"<<std::setfill('0') << std::setw(8) << std::hex <<REGS[i];
-	// 	if (i%2) std::cout<<std::endl;
-	// };
+	std::cout<< "Registers:"<<std::endl;
+	for (int i = 0; i< 32; i++){
+		std::cout<<"["<<std::setw(2)<<i<<"]:"<<std::setfill('0') << std::setw(8) << std::hex <<REGS[i];
+		if (i%2) std::cout<<std::endl;
+	};
 	std::cout<< std::dec;
 }

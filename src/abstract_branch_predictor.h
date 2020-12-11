@@ -22,8 +22,9 @@ public:
 	 * return -1 as it is predicted no branch
 	 */
 	virtual uint32_t getTarget(uint32_t PC) = 0;
-	virtual uint32_t sendout() = 0;
-	virtual void misprediction() = 0;
+
+	virtual bool predictTaken(uint32_t PC){return false;};
+	
 	/*
 	 * It is called after each branch is resolved to update
 	 * the branch predictor metadata

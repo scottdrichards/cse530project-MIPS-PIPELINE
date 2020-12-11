@@ -13,6 +13,15 @@
 #include "abstract_memory.h"
 #include "base_object.h"
 
+enum FLUSH_FROM{
+	NO_FLUSH,
+	FLUSH_FETCH,
+	FLUSH_DECODE,
+	FLUSH_EXECUTE,
+	FLUSH_MEMORY,
+	FLUSH_WRITEBACK
+};
+
 /* Pipeline ops (instances of this structure) are high-level representations of
  * the instructions that actually flow through the pipeline. This struct does
  * not correspond 1-to-1 with the control signals that would actually pass
@@ -100,7 +109,7 @@ public:
 	/* information for PC update (branch recovery). Branches should use this
 	 * mechanism to redirect the fetch stage, and flush the ops that came after
 	 * the branch as necessary. */
-	int branch_recover; /* set to '1' to load a new PC */
+	bool branch_recover; /* set to '1' to load a new PC */
 	uint32_t branch_dest; /* next fetch will be from this PC */
 	int branch_flush; /* how many stages to flush during recover? (1 = fetch, 2 = fetch/decode, ...) */
 
@@ -123,7 +132,7 @@ public:
 	/* helper: pipe stages can call this to schedule a branch recovery */
 	/* flushes 'flush' stages (1 = execute only, 2 = fetch/decode, ...) and then
 	 * sets the fetch PC to the given destination. */
-	void pipeRecover(int flush, uint32_t dest);
+	void pipeRecover(FLUSH_FROM flush, uint32_t dest);
 
 	//each of these functions implements one stage of the pipeline
 	void pipeStageFetch();

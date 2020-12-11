@@ -57,8 +57,8 @@ public:
 	uint32_t bht_entry_width;
 	uint32_t pht_width;
 	uint32_t btb_size;
-	int branch_predictor; // TODO - what should this be
 	uint32_t ras_size;
+	int branch_predictor; // TODO - what should this be
 
 	ConfigurationData() {
 		cache_size_l1 = 32768;

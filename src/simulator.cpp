@@ -57,6 +57,18 @@ Simulator::Simulator(ConfigurationData* info) {
 
 	pipe->inst_mem = cache_l1_I;
 	pipe->data_mem = cache_l1_D;
+
+	// Create branch predictor
+	switch (info->branch_predictor){
+		default:
+			pipe->BP = new DynamicBranchPredictor(
+				info->bht_entries,
+				info->bht_entry_width,
+				info->pht_width,
+				info->btb_size,
+				info->ras_size
+			);
+	}
 }
 
 void printCycleHeader(){
