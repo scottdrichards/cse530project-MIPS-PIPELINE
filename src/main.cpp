@@ -14,6 +14,12 @@
 #include "simulator.h"
 #include "util.h"
 
+#define QUOTE(x) #x
+#define LOAD_WITH_CAST(label,cast) if(msg.getValue(QUOTE(label)) != Json::nullValue) \
+		info->label = (cast)msg.getValue(QUOTE(label)).asInt();
+#define LOAD(label) LOAD_WITH_CAST(label,Json::Value::Int)
+
+
 /***************************************************************/
 /* Simulator.                                                  */
 /***************************************************************/
@@ -50,7 +56,7 @@ void writeProgramToMem(uint32_t address, uint32_t value) {
 /* Purpose: Read memory hierarchy configs                      */
 /*                                                             */
 /***************************************************************/
-MemHrchyInfo* getMemHrchyInfo(char* config_file) {
+ConfigurationData* getMemHrchyInfo(char* config_file) {
 	FILE * config;
 	int ii;
 	char line[100];
@@ -65,62 +71,31 @@ MemHrchyInfo* getMemHrchyInfo(char* config_file) {
 	ConfigReader msg;
 	msg.setJson(str);
 	std::cerr << "Config file is read successfully\n";
-	MemHrchyInfo * info = new MemHrchyInfo;
+	ConfigurationData * info = new ConfigurationData;
 
-	if(msg.getValue("cache_size_l1") != Json::nullValue)
-		info->cache_size_l1 = msg.getValue("cache_size_l1").asInt();
-	else
-		std::cerr << "cache_size_l1 is not defined in config.json, using default value : " << info->cache_size_l1 << "\n";
+	// Load cache info
+	LOAD(cache_size_l1);
+	LOAD(cache_size_l1);
+	LOAD(cache_assoc_l1);
+	LOAD(cache_size_l2);
+	LOAD(cache_assoc_l2);
+	LOAD(cache_blk_size);
+	LOAD_WITH_CAST(repl_policy_l1i, ReplacementPolicy);
+	LOAD_WITH_CAST(repl_policy_l1d, ReplacementPolicy);
+	LOAD_WITH_CAST(repl_policy_l2, ReplacementPolicy);
+	LOAD(access_delay_l1);
+	LOAD(access_delay_l2);
+	LOAD(memDelay);
+	LOAD_WITH_CAST(writeBack, bool);
 
-	if(msg.getValue("cache_assoc_l1") != Json::nullValue)
-		info->cache_assoc_l1 = msg.getValue("cache_assoc_l1").asInt();
-	else
-		std::cerr << "cache_assoc_l1 is not defined in config.json, using default value : " << info->cache_assoc_l1 << "\n";
+	// Load Branch info
+	LOAD(bht_entries);
+	LOAD(bht_entry_width);
+	LOAD(pht_width);
+	LOAD(btb_size);
+	LOAD(branch_predictor);
+	LOAD(ras_size);
 
-	if(msg.getValue("cache_size_l2") != Json::nullValue)
-		info->cache_size_l2 = msg.getValue("cache_size_l2").asInt();
-	else
-		std::cerr << "cache_size_l2 is not defined in config.json, using default value : " << info->cache_size_l2 << "\n";
-
-	if(msg.getValue("cache_assoc_l2") != Json::nullValue)
-		info->cache_assoc_l2 = msg.getValue("cache_assoc_l2").asInt();
-	else
-		std::cerr << "cache_assoc_l2 is not defined in config.json, using default value : " << info->cache_assoc_l2 << "\n";
-
-	if(msg.getValue("cache_blk_size") != Json::nullValue)
-		info->cache_blk_size = msg.getValue("cache_blk_size").asInt();
-	else
-		std::cerr << "cache_blk_size is not defined in config.json, using default value : " << info->cache_blk_size << "\n";
-
-	if(msg.getValue("repl_policy_l1d") != Json::nullValue)
-		info->repl_policy_l1d = msg.getValue("repl_policy_l1d").asInt();
-	else
-		std::cerr << "repl_policy_l1d is not defined in config.json, using default value : " << info->repl_policy_l1d << "\n";
-
-	if(msg.getValue("repl_policy_l1i") != Json::nullValue)
-		info->repl_policy_l1i = msg.getValue("repl_policy_l1i").asInt();
-	else
-		std::cerr << "repl_policy_l1i is not defined in config.json, using default value : " << info->repl_policy_l1i << "\n";
-
-	if(msg.getValue("repl_policy_l2") != Json::nullValue)
-		info->repl_policy_l2 = msg.getValue("repl_policy_l2").asInt();
-	else
-		std::cerr << "repl_policy_l2 is not defined in config.json, using default value : " << info->repl_policy_l2 << "\n";
-
-	if(msg.getValue("access_delay_l1") != Json::nullValue)
-		info->access_delay_l1 = msg.getValue("access_delay_l1").asInt();
-	else
-		std::cerr << "access_delay_l1 is not defined in config.json, using default value : " << info->access_delay_l1 << "\n";
-
-	if(msg.getValue("access_delay_l2") != Json::nullValue)
-		info->access_delay_l2 = msg.getValue("access_delay_l2").asInt();
-	else
-		std::cerr << "access_delay_l2 is not defined in config.json, using default value : " << info->access_delay_l2 << "\n";
-
-	if(msg.getValue("memDelay") != Json::nullValue)
-		info->memDelay = msg.getValue("memDelay").asInt();
-	else
-		std::cerr << "memDelay is not defined in config.json, using default value : " << info->memDelay << "\n";
 
 	if(msg.getValue("debugMemory") != Json::nullValue)
 		DEBUG_MEMORY = msg.getValue("debugMemory").asBool();
@@ -313,7 +288,7 @@ int main(int argc, char *argv[]) {
 				argv[0]);
 		exit(1);
 	}
-	MemHrchyInfo* info = getMemHrchyInfo(argv[1]);
+	ConfigurationData* info = getMemHrchyInfo(argv[1]);
 	printf("Simulator...\n\n");
 
 	simulator = new Simulator(info);

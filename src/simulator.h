@@ -14,7 +14,7 @@
 
 class Simulator {
 public:
-	Simulator(MemHrchyInfo* info);
+	Simulator(ConfigurationData* info);
 	virtual ~Simulator();
 	PipeState * pipe;
 	BaseMemory * main_memory;

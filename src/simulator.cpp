@@ -11,7 +11,7 @@
 
 uint64_t currCycle;
 
-Simulator::Simulator(MemHrchyInfo* info) {
+Simulator::Simulator(ConfigurationData* info) {
 	currCycle = 0;
 	printf("initialize simulator\n\n");
 	//initializing core
