@@ -7,8 +7,7 @@
 #ifndef __UTIL_H__
 #define __UTIL_H__
 #include <cstdint>
-
-enum ReplacementPolicy;
+#include "repl_policy.h"
 
 uint64_t extern currCycle;
 
