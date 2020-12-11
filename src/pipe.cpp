@@ -185,7 +185,7 @@ void PipeState::pipeStageMem() {
 
 	// Perform bypassing for stores here
 	if (isStore(op)){
-		if (wb_op && wb_op->reg_dst){
+		if (wb_op && op->reg_src2 == wb_op->reg_dst){
 			op->mem_value = op->reg_src2_value = wb_op->reg_dst_value;	
 		}
 		else{
