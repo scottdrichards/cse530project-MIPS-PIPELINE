@@ -25,6 +25,12 @@ public:
 
 	virtual bool predictTaken(uint32_t PC){return false;};
 	
+	virtual uint32_t popRAS()=0;
+	/**
+	 * @returnPC is the return PC. So typically +4 of current PC when called
+	*/
+	virtual void pushRAS(uint32_t returnPC)=0;
+	
 	/*
 	 * It is called after each branch is resolved to update
 	 * the branch predictor metadata

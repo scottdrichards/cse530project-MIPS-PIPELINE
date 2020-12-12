@@ -22,7 +22,7 @@ DynamicBranchPredictor::DynamicBranchPredictor(
 	this->ras_size = ras_size;
 
 	BTB = std::vector<BTBEntry>(btb_size,{0,0,false});
-
+	RAS = std::vector<uint32_t>(ras_size);
 }
 
 DynamicBranchPredictor::~DynamicBranchPredictor() {
@@ -78,8 +78,22 @@ void DynamicBranchPredictor::update(uint32_t PC, bool taken, uint32_t target) {
 
 
 	/**
-	 * BHT Section
+	 * TODO BHT Section
 	*/
 
 	return;
+}
+
+uint32_t DynamicBranchPredictor::popRAS(){
+	if (RAS_count){
+		RAS_count--;
+		RAS_next = (RAS_next + ras_size-1)%ras_size;
+		return RAS[RAS_next];
+	}
+	return 0;
+}
+void DynamicBranchPredictor::pushRAS(uint32_t returnPC){
+	RAS_count++;
+	RAS[RAS_next++] = returnPC;
+	RAS_next %= ras_size;
 }

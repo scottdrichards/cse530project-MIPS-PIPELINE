@@ -347,8 +347,6 @@ void PipeState::pipeStageExecute() {
 			op->reg_dst_value = op->pc + 4;
 			op->branch_dest = op->reg_src1_value;
 			op->branch_taken = 1;
-			//Push Call Address when Function is executed
-
 			break;
 
 		case SUBOP_MULT: {
@@ -566,8 +564,9 @@ void PipeState::pipeStageExecute() {
 	if(op->is_branch == 1 && op->branch_dest){
 		auto targetAddress = op->branch_taken? op->branch_dest: op->pc+4;
 		auto nextOp = decode_op?decode_op:fetch_op;
+		auto nextPC = nextOp?nextOp->pc : PC;
 		// Do we have the correct branch in the pipe?
-		if (nextOp->pc != targetAddress){
+		if (nextPC != targetAddress){
 			pipeRecover(FLUSH_EXECUTE, targetAddress);
 		}
 		BP->update(op->pc,op->branch_taken,targetAddress);
@@ -649,13 +648,13 @@ void PipeState::pipeStageDecode() {
 		op->reg_dst_value = op->pc + 4;
 		op->reg_dst_value_ready = 1;
 		op->branch_taken = 1;
+		BP->pushRAS(op->pc+4);
 		//fallthrough
 	case OP_J:
 		op->is_branch = 1;
 		op->branch_cond = 0;
 		op->branch_taken = 1;
 		op->branch_dest = (op->pc & 0xF0000000) | targ;
-
 		break;
 
 	case OP_BEQ:
@@ -712,27 +711,40 @@ void PipeState::pipeStageDecode() {
 		break;
 	}
 	
-	//branch and do we have a destination ready?
-	if(op->is_branch == 1 && op->branch_dest){
-		// Is it a conditional branch?
-		if (op->branch_cond){
-			// Guess whether it is taken or not
-			auto predictedTaken = BP->predictTaken(op->pc);
-			// If we predict it should be taken let's take it (if not already taken
-			// based on BTB prediction
-			if (predictedTaken && fetch_op->pc != op->branch_dest)
-				pipeRecover(FLUSH_DECODE, op->branch_dest);
-		}else{
-			// We can process the branch now (unless already done)
-			if (fetch_op->pc != op->branch_dest){
-				// Mispredicted BTB result, rollback
-				pipeRecover(FLUSH_DECODE, op->branch_dest);
+	//branch 
+	if(op->is_branch == 1 ){
+		// Do we have a target already?
+		if (op->branch_dest){
+			// Is it a conditional branch?
+			if (op->branch_cond){
+				// Guess whether it is taken or not
+				auto predictedTaken = BP->predictTaken(op->pc);
+				// If we predict it should be taken let's take it (if not already taken
+				// based on BTB prediction
+				if (predictedTaken && fetch_op->pc != op->branch_dest)
+					pipeRecover(FLUSH_DECODE, op->branch_dest);
 			}else{
-				// Predicted well with BTB
+				// We can process the branch now (unless already done)
+				if (fetch_op->pc != op->branch_dest){
+					// Mispredicted BTB result, rollback
+					pipeRecover(FLUSH_DECODE, op->branch_dest);
+				}else{
+					// Predicted well with BTB
+				}
+
+				BP->update(op->pc,true,op->branch_dest);
+				// branch_dest == 0 means already taken
+				op->branch_dest = 0;
 			}
-			BP->update(op->pc,true,op->branch_dest);
-			// branch_dest == 0 means already taken
-			op->branch_dest = 0;
+		}else{
+			// Is it a return instruction?
+			if (funct2 == SUBOP_JALR){
+				auto RASprediction = BP->popRAS();
+				// Should we flush and redo?
+				if (RASprediction && fetch_op->pc != RASprediction){
+					pipeRecover(FLUSH_DECODE, RASprediction);
+				}	
+			}
 		}
 	}
 	// place op in downstream slot
