@@ -22,11 +22,33 @@
 /*
  * You should implement MSHR
  */
+
+  // code added for MSHR class... UMAR
+
+
+typedef struct
+{
+	bool isPacket;
+	//Packet mshrPkt;
+	//matteUpdate
+	Packet* mshrPkt;
+	uint32_t blockAddr;
+	bool isMshrDataValid;
+}mshr_data;
 class MSHR {
 public:
+	uint32_t MSHR_table[8][9];
+	mshr_data MSHR_tab[mshr_size][mshr_subsets+1];
 	MSHR();
 	virtual ~MSHR();
-};
+	virtual bool updatePacket(Packet* pkt, uint32_t blkSize);
+	virtual void copyPacket(Packet* pkt, int i, int j);
+	//virtual void Tick() = 0;
+}; 
+
+
+ // Code for MSHR class ends here.. UMAR
+
 
 // This is a simple struct for use in getLocation method
 typedef struct Location{
@@ -38,6 +60,8 @@ typedef struct Location{
 /*
  * You should implement Cache
  */
+
+
 class Cache: public AbstractMemory {
 private:
 	AbstarctReplacementPolicy *replPolicy;

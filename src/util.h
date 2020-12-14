@@ -1,4 +1,4 @@
-/*
+			/*
  * Computer Architecture CSE530
  * MIPS pipeline cycle-accurate simulator
  * PSU
@@ -8,6 +8,9 @@
 #define __UTIL_H__
 #include <cstdint>
 #include "repl_policy.h"
+#define mshr_size 8
+#define mshr_subsets 2
+#define mshr_columns 3+3*mshr_subsets
 
 uint64_t extern currCycle;
 

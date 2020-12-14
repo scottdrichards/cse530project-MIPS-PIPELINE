@@ -11,6 +11,82 @@
 #include "repl_policy.h"
 #include "next_line_prefetcher.h"
 #include "cache.h"
+#include "base_memory.h"
+#include "base_object.h"
+#include "util.h"
+
+
+// MSHR code starts here.... UMAR
+
+MSHR::MSHR()
+{
+	for(int j=0;j<mshr_size;j++)
+	{
+		for(int i=0;i<mshr_subsets+1;i++)
+		{
+			MSHR_tab[j][i].isMshrDataValid = false;
+			
+			MSHR_tab[j][i].mshrPkt = NULL;
+		}
+	}
+
+}
+
+MSHR::~MSHR()
+{
+	//TODO:delete complete MSHR Array
+}
+
+void MSHR::copyPacket(Packet* pkt, int i , int j){
+		//matteUpdate
+		// MSHR_tab[i][j].mshrPkt.isReq = pkt->isReq;
+		// MSHR_tab[i][j].mshrPkt.isWrite = pkt->isWrite;
+		// MSHR_tab[i][j].mshrPkt.type = pkt->type;
+		// MSHR_tab[i][j].mshrPkt.addr = pkt->addr;
+		// MSHR_tab[i][j].mshrPkt.size = pkt->size;
+		// MSHR_tab[i][j].mshrPkt.data = pkt->data;
+		// MSHR_tab[i][j].mshrPkt.ready_time = pkt->ready_time;
+}
+
+bool MSHR::updatePacket(Packet* pkt, uint32_t blkSize)
+{
+	
+	uint32_t blockAddr = pkt->addr & ~(blkSize-1);
+	bool found = false;
+	for(int i=0;i<mshr_size;i++){
+		if((MSHR_tab[i][0].blockAddr == blockAddr) && (MSHR_tab[i][0].isMshrDataValid == true))
+		{
+			for(int j=1;j<mshr_subsets+1;j++)
+			{
+				if(MSHR_tab[i][j].isMshrDataValid == 0)
+				{
+					
+					MSHR_tab[i][j].mshrPkt = pkt;
+					MSHR_tab[i][j].isMshrDataValid = true;
+					found = true;
+					break;
+				}
+			}
+		}
+	}
+	if(!found)
+	{
+		for(int i=0;i<mshr_size;i++){
+			if(MSHR_tab[i][0].isMshrDataValid == false){
+				
+				MSHR_tab[i][0].blockAddr = blockAddr;
+				MSHR_tab[i][0].isMshrDataValid = true;
+				MSHR_tab[i][1].isMshrDataValid = true;
+				MSHR_tab[i][1].mshrPkt = pkt;
+				found = true; 
+				break;
+			}
+		}
+	}
+	return found;
+}
+
+// MSHR code ends here .... UMAR 
 
 Cache::Cache(uint32_t size, uint32_t associativity, uint32_t blkSize,
 		enum ReplacementPolicy replType, uint32_t delay):
