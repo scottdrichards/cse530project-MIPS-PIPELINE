@@ -42,18 +42,28 @@ enum PacketSrcType {
 class ConfigurationData{
 public:
 	// Cache
-	uint64_t cache_size_l1;
-	uint64_t cache_assoc_l1;
-	uint64_t cache_size_l2;
-	uint64_t cache_assoc_l2;
 	uint64_t cache_blk_size;
+	bool writeBack;
+	
+	uint64_t          cache_size_l1;
+	uint64_t          cache_assoc_l1;
+	uint32_t          cache_l1_mshr_entries;
+	uint32_t          cache_l1_mshr_subentries;
+	uint32_t          cache_l1_wbb_entries;
+	uint64_t          access_delay_l1;
 	ReplacementPolicy repl_policy_l1i;
 	ReplacementPolicy repl_policy_l1d;
+	
+	uint64_t          cache_size_l2;
+	uint64_t          cache_assoc_l2;
+	uint32_t          cache_l2_mshr_entries;
+	uint32_t          cache_l2_mshr_subentries;
+	uint32_t          cache_l2_wbb_entries;
+	uint32_t          access_delay_l2;
 	ReplacementPolicy repl_policy_l2;
-	uint64_t access_delay_l1;
-	uint32_t access_delay_l2;
+
 	uint32_t memDelay;
-	bool writeBack;
+
 
 	// Branching
 	uint32_t bht_entries;
@@ -64,18 +74,26 @@ public:
 	int branch_predictor; // TODO - what should this be
 
 	ConfigurationData() {
+		cache_blk_size = 64;
+		writeBack = true;
+
 		cache_size_l1 = 32768;
 		cache_assoc_l1 = 4;
-		cache_size_l2 = 2 * 1024 * 1024;
-		cache_assoc_l2 = 16;
-		cache_blk_size = 64;
+		cache_l1_mshr_entries = 8;
+		cache_l1_mshr_subentries = 2;
+		cache_l1_wbb_entries = 8;
+		access_delay_l1 = 2;
 		repl_policy_l1i = ReplacementPolicy::RandomReplPolicy;
 		repl_policy_l1d = ReplacementPolicy::RandomReplPolicy;
+
+		cache_size_l2 = 2 * 1024 * 1024;
+		cache_assoc_l2 = 16;
 		repl_policy_l2 = ReplacementPolicy::RandomReplPolicy;
-		access_delay_l1 = 2;
 		access_delay_l2 = 20;
+		cache_l2_mshr_entries = 32;
+		cache_l2_mshr_subentries = 8;
+		cache_l2_wbb_entries = 32;
 		memDelay = 100;
-		writeBack = true;
 
 		bht_entries = 2048;
 		bht_entry_width = 8;

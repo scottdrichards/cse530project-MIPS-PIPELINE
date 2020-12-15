@@ -7,71 +7,48 @@
 #ifndef __CACHE_H__
 #define __CACHE_H__
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
 #include "block.h"
 #include "abstract_memory.h"
 #include "abstract_prefetcher.h"
 #include "repl_policy.h"
-#include <cstdint>
-#include <string>
 
 // These are used so that we don't have to keep typing them all out for each constructor
-#define CACHE_PARAMS_TYPED uint32_t _Size, uint32_t _associativity, uint32_t _blkSize,\
-			enum ReplacementPolicy _replPolicy, uint32_t _delay
-#define CACHE_PARAMS _Size, _associativity, _blkSize, _replPolicy, _delay
+#define CACHE_PARAMS_TYPED uint32_t size, uint32_t associativity, uint32_t blkSize,\
+			ReplacementPolicy replacementPolicy, uint32_t delay, uint32_t mshr_entries, uint32_t mshr_subentries
+#define CACHE_PARAMS size, associativity, blkSize, replacementPolicy, delay, mshr_entries, mshr_subentries
 
-/*
- * You should implement MSHR
- */
-
-  // code added for MSHR class... UMAR
-
-
-typedef struct
-{
-	bool isPacket;
-	//Packet mshrPkt;
-	//matteUpdate
-	Packet* mshrPkt;
-	uint32_t blockAddr;
-	bool isMshrDataValid;
-}mshr_data;
-class MSHR {
-public:
-	uint32_t MSHR_table[8][9];
-	mshr_data MSHR_tab[mshr_size][mshr_subsets+1];
-	MSHR();
-	virtual ~MSHR();
-	virtual bool updatePacket(Packet* pkt, uint32_t blkSize);
-	virtual void copyPacket(Packet* pkt, int i, int j);
-	//virtual void Tick() = 0;
-}; 
-
-
- // Code for MSHR class ends here.. UMAR
-
-
-// This is a simple struct for use in getLocation method
+// This is a simple struct useful for splitting up addresses to tag/set/offset
+// Not space efficient, but works for simulation
 typedef struct Location{
 	uint32_t tag;
 	uint32_t set;
 	uint32_t offset;
 } Location;
 
-/*
- * You should implement Cache
- */
-
 
 class Cache: public AbstractMemory {
 private:
+	// MSHR Section
+	struct MSHRSubEntry{
+		bool valid;
+		Packet* packet;
+	};
+	struct MSHREntry{
+		bool valid;
+		uint32_t address;
+		bool issued;
+		std::vector<MSHRSubEntry> subentries;
+	};
+	std::vector<MSHREntry> mshr;
+
 	AbstarctReplacementPolicy *replPolicy;
 	AbstractPrefetcher* prefetcher;
-	MSHR* mshr;
 	uint64_t cSize, associativity, blkSize, numSets;
-	// This is mainly for L1 cache that will receive a byte request
-	// and will have to translate it to a block size, we will hold onto the
-	// request in this queue for when the response happens.
-	std::vector<Packet*>stalledReqQueue;
+
 	Packet* repeatPacket(Packet* request);
 	
 	/**
@@ -87,6 +64,11 @@ private:
 	 * Checks if writeback is required and performs it if so
 	*/
 	bool writeBack(Block* block, uint32_t set);
+
+	/**
+	 * Adds the packet to the MSHR
+	*/
+	bool processCacheMiss(Packet* packet);
 public:
 	// Used to calculate tag set and offset with an address
 	Location getLocation(uint32_t addr);

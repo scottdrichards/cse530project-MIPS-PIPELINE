@@ -23,21 +23,27 @@ Simulator::Simulator(ConfigurationData* info) {
 			info->cache_assoc_l1,
 			info->cache_blk_size,
 			(ReplacementPolicy) info->repl_policy_l1i,
-			info->access_delay_l1);
+			info->access_delay_l1,
+			info->cache_l1_mshr_entries,
+			info->cache_l1_mshr_subentries);
 
 	cache_l1_D = new L1DCache(
 			info->cache_size_l1,
 			info->cache_assoc_l1,
 			info->cache_blk_size,
 			(ReplacementPolicy) info->repl_policy_l1d,
-			info->access_delay_l1);
+			info->access_delay_l1,
+			info->cache_l1_mshr_entries,
+			info->cache_l1_mshr_subentries);
 
 	cache_l2 = new L2Cache(
 			info->cache_size_l2,
 			info->cache_assoc_l2,
 			info->cache_blk_size,
 			(ReplacementPolicy) info->repl_policy_l2,
-			info->access_delay_l2);
+			info->access_delay_l2,
+			info->cache_l2_mshr_entries,
+			info->cache_l2_mshr_subentries);
 
 	main_memory = new BaseMemory(info->memDelay);
 

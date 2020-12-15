@@ -11,90 +11,17 @@
 #include "repl_policy.h"
 #include "next_line_prefetcher.h"
 #include "cache.h"
-#include "base_memory.h"
-#include "base_object.h"
-#include "util.h"
 
-
-// MSHR code starts here.... UMAR
-
-MSHR::MSHR()
-{
-	for(int j=0;j<mshr_size;j++)
-	{
-		for(int i=0;i<mshr_subsets+1;i++)
-		{
-			MSHR_tab[j][i].isMshrDataValid = false;
-			
-			MSHR_tab[j][i].mshrPkt = NULL;
-		}
-	}
-
-}
-
-MSHR::~MSHR()
-{
-	//TODO:delete complete MSHR Array
-}
-
-void MSHR::copyPacket(Packet* pkt, int i , int j){
-		//matteUpdate
-		// MSHR_tab[i][j].mshrPkt.isReq = pkt->isReq;
-		// MSHR_tab[i][j].mshrPkt.isWrite = pkt->isWrite;
-		// MSHR_tab[i][j].mshrPkt.type = pkt->type;
-		// MSHR_tab[i][j].mshrPkt.addr = pkt->addr;
-		// MSHR_tab[i][j].mshrPkt.size = pkt->size;
-		// MSHR_tab[i][j].mshrPkt.data = pkt->data;
-		// MSHR_tab[i][j].mshrPkt.ready_time = pkt->ready_time;
-}
-
-bool MSHR::updatePacket(Packet* pkt, uint32_t blkSize)
-{
-	
-	uint32_t blockAddr = pkt->addr & ~(blkSize-1);
-	bool found = false;
-	for(int i=0;i<mshr_size;i++){
-		if((MSHR_tab[i][0].blockAddr == blockAddr) && (MSHR_tab[i][0].isMshrDataValid == true))
-		{
-			for(int j=1;j<mshr_subsets+1;j++)
-			{
-				if(MSHR_tab[i][j].isMshrDataValid == 0)
-				{
-					
-					MSHR_tab[i][j].mshrPkt = pkt;
-					MSHR_tab[i][j].isMshrDataValid = true;
-					found = true;
-					break;
-				}
-			}
-		}
-	}
-	if(!found)
-	{
-		for(int i=0;i<mshr_size;i++){
-			if(MSHR_tab[i][0].isMshrDataValid == false){
-				
-				MSHR_tab[i][0].blockAddr = blockAddr;
-				MSHR_tab[i][0].isMshrDataValid = true;
-				MSHR_tab[i][1].isMshrDataValid = true;
-				MSHR_tab[i][1].mshrPkt = pkt;
-				found = true; 
-				break;
-			}
-		}
-	}
-	return found;
-}
-
-// MSHR code ends here .... UMAR 
-
-Cache::Cache(uint32_t size, uint32_t associativity, uint32_t blkSize,
-		enum ReplacementPolicy replType, uint32_t delay):
+Cache::Cache(CACHE_PARAMS_TYPED):
+		// Initialize parent
 		AbstractMemory(delay, 100),cSize(size),
-		associativity(associativity), blkSize(blkSize) {
+				associativity(associativity), blkSize(blkSize){
 
 	numSets = cSize / (blkSize * associativity);
 	blocks = new Block**[numSets];
+
+	auto blankSubentries = std::vector<MSHRSubEntry>(mshr_subentries, (MSHRSubEntry) {false, nullptr});
+	mshr = std::vector<MSHREntry>(mshr_entries,(MSHREntry){false, 0, false, blankSubentries});
 
 	for (int i = 0; i < (int) numSets; i++) {
 		blocks[i] = new Block*[associativity];
@@ -102,10 +29,8 @@ Cache::Cache(uint32_t size, uint32_t associativity, uint32_t blkSize,
 			blocks[i][j] = new Block(blkSize);
 	}
 
-	next == nullptr;
-	prev == nullptr;
-
-	switch (replType) {
+	// Set up replacement policy
+	switch (replacementPolicy) {
 		case RandomReplPolicy:
 			replPolicy = new RandomRepl(this);
 			break;
@@ -119,6 +44,10 @@ Cache::Cache(uint32_t size, uint32_t associativity, uint32_t blkSize,
 			assert(false && "Unknown Replacement Policy");
 	}
 
+	// Defaults and errata	
+	next == nullptr;
+	prev == nullptr;
+
 	if (label.length()==0) label = "Cache";
 }
 
@@ -130,7 +59,7 @@ Cache::~Cache() {
 		delete blocks[i];
 	}
 	delete blocks;
-
+	delete replPolicy;
 }
 
 uint32_t Cache::getAssociativity() {
@@ -196,23 +125,6 @@ void overwriteData(uint8_t* dest, uint8_t* source, uint32_t numberItems){
 	}
 } 
 
-Packet* Cache::getStalledPacket(Packet* packet){
-	std::vector<Packet*>::iterator found = std::find_if(std::begin(stalledReqQueue),std::end(stalledReqQueue),
-			[packet, this](Packet*stalledPacket){
-		if (stalledPacket->originalPacket){
-			return packet->originalPacket == stalledPacket->originalPacket;
-		}
-		return packet->originalPacket==stalledPacket;
-	});
-
-	if (found != std::end(stalledReqQueue)){
-		Packet* retPacket = *found;
-		stalledReqQueue.erase(found);
-		return retPacket;
-	}
-	return nullptr;
-}
-
 /**
  * This function should be called when this cache is to receive a request for data. This method
  * just queues up requests to be handled in the tick() method
@@ -231,6 +143,65 @@ bool Cache::recvReq(Packet * packet){
 	return false;
 }
 
+bool Cache::processCacheMiss(Packet* packet){
+	// First we need to get the block address (e.g., offset of 0)
+	Location loc = getLocation(packet->addr);
+	loc.offset = 0;
+	uint32_t blockAddress = getAddress(loc);
+
+	// Get a mshr entry - if no match, then just an empty one
+	auto mshrMatchIt = std::find_if(mshr.begin(), mshr.end(),[blockAddress](MSHREntry entry){
+		return entry.address == blockAddress && entry.valid;
+	});
+	if (mshrMatchIt == mshr.end()){
+		// No direct match found, let's see if we can find an empty entry
+		mshrMatchIt = std::find_if(mshr.begin(), mshr.end(),[](MSHREntry entry){
+			return !entry.valid;
+		});
+		if (mshrMatchIt == mshr.end()){
+			// No entries available.
+			return false;
+		}
+	}
+	auto entry = &(*mshrMatchIt);
+	entry->address = blockAddress;
+
+	// Find an open slot
+	auto subEntries = &entry->subentries;
+	auto subEntryIt = std::find_if(subEntries->begin(), subEntries->end(), [](MSHRSubEntry subEntry){
+		return !subEntry.valid;
+	});
+	if (subEntryIt == subEntries->end()){
+		return false;
+	}
+
+	// Let's add the subentry to MSHR
+	auto subEntry = &(*subEntryIt);
+	
+	subEntry->packet = packet;
+
+	// Now let's send a packet onward if we haven't sent it already
+	if (!entry->issued){
+		auto copiedPacket = repeatPacket(packet);
+		if (copiedPacket->isWrite){
+			// We just want to retrieve the data, we don't forward the write
+			copiedPacket->isWrite = false;
+			// Change type essentially we do not want it going back to L1_I cache
+			copiedPacket->type = PacketTypeLoad;
+		}
+		auto response = next->recvReq(copiedPacket);
+		if (!response){
+			// Could not send packet on
+			return false;
+		}
+		entry->issued = true;
+	}
+
+	// Let's wait to make this valid in case the forwarding failed
+	subEntry->valid = true;
+	entry->valid = true;
+	return true;
+}
 
 void Cache::applyPacketToCacheBlock(Packet* packet, Block* block){
 	Location loc = getLocation(packet->addr);
@@ -327,18 +298,47 @@ void Cache::recvResp(Packet* packet){
 		overwriteData(block->getData(), packet->data, getBlockSize());
 		DPRINTPACKET(label.c_str(),"Writing to packet", packet);
 
-		// Now, was there a pending packet that needs to be serviced?
-		Packet* stalledPacket = getStalledPacket(packet);
-		if (stalledPacket){
-			DPRINTPACKET(label.c_str(),"Applying stalled packet", stalledPacket);
-			applyPacketToCacheBlock(stalledPacket,block);
+		// Now, was there a pending packets in the MSHR that needs to be serviced?
+		auto mshrEntryIt = std::find_if(mshr.begin(), mshr.end(),[&packet](MSHREntry entry){
+			return entry.address = packet->addr;
+		});
+		auto entry = &(*mshrEntryIt);
+
+		// If we found it AND it is valid
+		if (mshrEntryIt != mshr.end() && (*mshrEntryIt).valid){
+			// Go through each valid subentry and deal with it
+			auto subEntries = &(*mshrEntryIt).subentries;
+
+			auto subEntriesToProcessEnd = std::partition(subEntries->begin(), subEntries->end(),[](MSHRSubEntry sub){return sub.valid;});
+
+			std::transform(subEntries->begin(), subEntriesToProcessEnd, subEntries->begin(), [block, this](MSHRSubEntry subEntry){
+
+				DPRINTPACKET(label.c_str(),"Applying MSHR subEntry packet", subEntry.packet);
+				
+				// Deal with waiting packet
+				applyPacketToCacheBlock(subEntry.packet,block);
+
+				DPRINTPACKET(label.c_str(),"Sending Response back", subEntry.packet);
+
+				// Send response for waiting packet
+				getPrev(subEntry.packet)->recvResp(subEntry.packet);
+				subEntry.packet = nullptr;
+				subEntry.valid = false;
+				return subEntry;
+			});
+
+			entry->valid = false;
+			entry->issued = false;
+			entry->address = 0;
+			// We are done with the packet - we can delete it
+			DPRINTPACKET(label.c_str(), "Deleting packet: ", packet);
 			delete packet;
-			packet = stalledPacket;
-			packet->isReq = false;
+		}else{
+			assert(false && "no MSHR entry found");
 		}
+	}else{
+		assert(false && "Received write packet from higher memory");
 	}
-	DPRINTPACKET(label.c_str(),"Sending Response back", packet);
-	getPrev(packet)->recvResp(packet);
 }
 
 /**
@@ -361,8 +361,9 @@ void Cache::Tick(){
 		return packet->ready_time<=currCycle;
 	};
 
-	// Push the ready packets to the beginning of the vector and returns the iterator at the dividing
+	// Push the ready packets to the beginning of the vector and returns the iterator at the dividing line
 	auto readyEnd = std::partition(pendingPackets.begin(),pendingPackets.end(),readyLambda);
+
 
 	// Process each ready packet
 	std::for_each(pendingPackets.begin(), readyEnd,[this](Packet* packet){
@@ -371,26 +372,21 @@ void Cache::Tick(){
 		// If the block is not yet in cache, we need to get it and have the packet wait as pending
 		if (way == -1){
 			// Cache miss
-			stalledReqQueue.push_back(packet);
-			// Translate and forward
-			Packet* forwardPacket = repeatPacket(packet);
-			// We need to make the translated packet conform to expectations
-			if (forwardPacket->isWrite){
-				// We just want to retrieve the data, we don't forward the write
-				forwardPacket->isWrite = false;
-				// Change type essentially we do not want it going back to L1_I cache
-				forwardPacket->type = PacketTypeLoad;
-			};
-			DPRINTPACKET(label.c_str(),"Forwarding packet", forwardPacket);
-			if (!next->recvReq(forwardPacket)){
-				assert(false && "Next cache stage cannot accomodate req");
+			auto result = processCacheMiss(packet);
+			if (!result){
+				// Couldn't add to MSHR? Just say it will be ready next time
+				packet->ready_time = currCycle + 1;
 			}
 		}else{
 			// Cache hit
 			DPRINTPACKET(label.c_str(),"Cache hit, apply packet", packet);
 			Location loc = getLocation(packet->addr);
 			applyPacketToCacheBlock(packet, blocks[loc.set][way]);
-			getPrev(packet)->recvResp(packet);
+			if (packet->type == PacketTypeWriteBack){
+				delete packet;
+			}else{
+				getPrev(packet)->recvResp(packet);
+			}			
 		};
 	});
 
