@@ -375,6 +375,10 @@ void Cache::Tick(){
 			auto result = processCacheMiss(packet);
 			if (!result){
 				// Couldn't add to MSHR? Just say it will be ready next time
+				// This DOES NOT STALL the pipeline unless the pendingPackets queue gets full
+				// because pendingPackets queue is not part of the spec I do not believe this is the correct way
+				// to go. Maybe we should be checking for cache hit and MSHR space allocation at that point
+				// but I'm not sure
 				packet->ready_time = currCycle + 1;
 			}
 		}else{
