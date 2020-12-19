@@ -60,19 +60,19 @@ void DynamicBranchPredictor::update(uint32_t PC, bool taken, uint32_t target) {
 	if (taken){
 		// If no match, see if there's an empty entry
 		if (found == BTB.end()) found = std::find_if(BTB.begin(), BTB.end(),
-					[PC](BTBEntry entry){return entry.PC == PC && entry.valid;});
+					[PC](BTBEntry entry){return !entry.valid;});
 		
 		// Update if we have a usable entry
 		if (found != BTB.end()){
-			auto entry = *found;
-			entry.PC = PC;
-			entry.target = target;
-			entry.valid = true;
+			auto entry = &(*found);
+			entry->PC = PC;
+			entry->target = target;
+			entry->valid = true;
 		}
 	}else{
 		if (found != BTB.end()){
 			// Clear the entry
-			(*found).valid = false;
+			(&(*found))->valid = false;
 		}
 	}
 
