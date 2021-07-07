@@ -1,3 +1,15 @@
+# MIPS Pipeline Project
+Overview
+-------------
+This project was to implement a MIPS pipeline simulator that ingests machine code and similates pipeline operations such as forwarding, caching, branch prediction, etc. The clock and baseline pipeline was provided but all pipeline optimizations were required. We got full marks for satisfying all requirements 
+
+The best way to view my contributions is to peruse [my commits](https://github.com/scottdrichards/cse530project/commits?author=scottdrichards) or to watch a [tutorial](https://www.dropbox.com/s/pmot5gegrnkz9p2/zoom_1.mp4?dl=0) I made (in vain) for my 6 teammates to understand the code. I did ~30k lines of code and was essentially the only contributor for this project.
+
+Not only am I proud of my implementation, but I also am proud of the debug tools/environment I set up.
+
+
+## Project Specification
+
 README
 -------------
 This document contains the documentation for the 1st project 'Simulator'. The goal of this project is to extend a simulator prototype, which is an essential tool for computer architecture researchers. As the name suggests, simulator is used for cloning the executional behaviour of a computer architectural design. Typically, we are focussing on a class of simulators called 'Cycle-Accurate Simulators', which simulates a microarchitecture on a cycle-by-cycle basis. It means that the entire execution strategy is based on the cycles and delays incorporated by certain operations. Please note that this project is runnable on Linux.
@@ -30,17 +42,17 @@ The project is worth 50 points in total. Below are how the points are assigned t
 
 Tasks to be completed 50 points + up to 5 bonus points
 --------------------------------
-1. Implement full bypassing in the pipeline (10 points) **Chunrong Shan** 
+1. Implement full bypassing in the pipeline (10 points)
 
-2. Implement a dynamic branch predictor with a BTB and a RAS (at least as sophisticated as one of the two-level branch predictors discussed in class) (10 points) **Jundi Li**, **Joe Tomasko**
+2. Implement a dynamic branch predictor with a BTB and a RAS (at least as sophisticated as one of the two-level branch predictors discussed in class) (10 points)
 
-3. Implement cache functionalities (for L1-I, L1-D, and L2 caches) and integrate them into the processor (10 points) **Movahhed Sad**
+3. Implement cache functionalities (for L1-I, L1-D, and L2 caches) and integrate them into the processor (10 points) 
 
-4. Implement the necessary writeback buffers and MSHRs (15 points) **Umar Mohammad**
+4. Implement the necessary writeback buffers and MSHRs (15 points)
 
-5. Implement LRU replacement policy and pseudo-LRU replacement policy (5 points) **Scott Richards** 
+5. Implement LRU replacement policy and pseudo-LRU replacement policy (5 points)
 
-6. Optional Bonus: Perform a sensitivity analysis on the size of the branch predictor (5 points) **Jundi Li**, **Joe Tomasko** 
+6. Optional Bonus: Perform a sensitivity analysis on the size of the branch predictor (5 points)
 
 
 Deliverables
