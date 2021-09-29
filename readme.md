@@ -3,7 +3,7 @@ Overview
 -------------
 This project was to implement a MIPS pipeline simulator that ingests machine code and similates pipeline operations such as forwarding, caching, branch prediction, etc. The clock and baseline pipeline was provided but all pipeline optimizations were required. We got full marks for satisfying all requirements 
 
-The best way to view my contributions is to peruse [my commits](https://github.com/scottdrichards/cse530project/commits?author=scottdrichards) or to watch a [tutorial](https://www.dropbox.com/s/pmot5gegrnkz9p2/zoom_1.mp4?dl=0) I made (in vain) for my 6 teammates to understand the code. I did ~30k lines of code and was essentially the only contributor for this project.
+The best way to view my contributions is to peruse [my commits](https://github.com/scottdrichards/cse530project/commits?author=scottdrichards) or to watch a [tutorial](https://www.dropbox.com/s/pmot5gegrnkz9p2/zoom_1.mp4?dl=0) I made for my 6 teammates to understand the code. I did ~30k lines of code and was essentially the only contributor for this project.
 
 Not only am I proud of my implementation, but I also am proud of the debug tools/environment I set up.
 
